@@ -45,7 +45,7 @@ export async function buildCommand(engine, mapTexture, dotUVs) {
           float core = 1.0 - smoothstep(R * 0.92, R, d);
           float ph = fract(uTime * 0.8 + float(i) * 0.37);
           float ring = (1.0 - smoothstep(0.0, R * 0.25, abs(d - R * (1.2 + 2.6 * ph)))) * (1.0 - ph) * (1.0 - g * 0.7);
-          col = mix(col, dc * 1.6, core * appear);
+          col = mix(col, dc * 0.42, core * appear);
           col += dc * ring * 1.2 * appear;
         }
         vec4 u = texture2D(tUI, vUv); col = mix(col, u.rgb * 1.3, u.a);

@@ -268,7 +268,7 @@ export const SHOTS = [
     const hexP = V(0.3, 0.25, 1.75);
     hexAt(w, { x: 0.3, z: 1.75, heading: Math.PI }, HEX.standH); w.hex.setScanner(1 - smooth(range(t, 3.0, 4.0)), 1);
     if (tilt <= 0) godCam(cam, h, 0.3 * range(t, 1.2, 2.2), 1.75 * range(t, 1.2, 2.2));
-    else { cam.up.copy(vlerp(V(0, 0, -1), V(0, 1, 0), tilt).normalize()); const pos = vlerp(V(0.3, h, 1.76), V(2.9, 1.9 - 0.3 * range(t, 3, 4), 4.8), tilt); look(cam, pos, vlerp(V(0.3, 0, 1.75), hexP.clone().add(V(0, 0.5, 0)), tilt), lerp(GOD.fov, 40, tilt)); }
+    else { cam.up.copy(vlerp(V(0, 0, -1), V(0, 1, 0), tilt).normalize()); const pos = vlerp(V(0.3, h, 1.76), V(2.9, 1.9 - 0.3 * range(t, 3, 4), 4.8), tilt); look(cam, pos, vlerp(V(0.3, 0, 1.75), hexP.clone().add(V(0, 0.5 + 0.9 * smooth(range(t, 2.9, 4.0)), 0)), tilt), lerp(GOD.fov, 44, tilt)); }
     // 无人机从空中飞回，悬停在六足机器人上方
     const dk = smoother(range(t, 2.4, 4.0));
     droneAlone(w, vlerp(V(-7, 10, 4), V(0.3, 2.8, 1.75), dk), Math.PI, 0.15 * (1 - dk), 0, rotorSpin(t + 60, { t0: 0 }), t);

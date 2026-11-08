@@ -18,6 +18,20 @@ export function createHelicopter() {
   const band = new THREE.Mesh(new THREE.CylinderGeometry(1.215, 1.215, 1.1, 40, 1, true), decal); band.rotation.x = Math.PI / 2; band.rotation.y = Math.PI / 2; band.scale.set(1, 1, 1.08); band.position.z = -0.6; body.add(band);
   const glass = new THREE.Mesh(new THREE.SphereGeometry(1.0, 32, 20, -Math.PI * 0.42, Math.PI * 0.84, Math.PI * 0.22, Math.PI * 0.5), M.glass);
   glass.scale.set(1.08, 0.95, 1.5); glass.position.set(0, 0.15, 1.75); body.add(glass);
+  // 舷窗、滑门、救援绞车、光电吊舱、排气管、天线
+  for (const sd of [-1, 1]) {
+    for (const [z, w] of [[0.35, 0.95], [-0.85, 0.75]]) { const win = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.55, w), M.glass); win.position.set(sd * 1.17, 0.32, z); win.rotation.z = sd * 0.08; body.add(win); }
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.25, 0.04), M.darkMetal); frame.position.set(sd * 1.2, 0.0, -0.25); body.add(frame);
+    const frame2 = frame.clone(); frame2.position.z = 0.95; body.add(frame2);
+    const step = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.05, 0.9), M.darkMetal); step.position.set(sd * 1.15, -0.95, 0.3); body.add(step);
+    const exh = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.45, 12), M.darkMetal); exh.rotation.z = Math.PI / 2 - sd * 0.4; exh.position.set(sd * 0.55, 1.35, -1.75); body.add(exh);
+  }
+  const hoist = new THREE.Group(); hoist.position.set(1.15, 1.0, 0.4); body.add(hoist);
+  const harm = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.12, 0.14), M.offwhite); harm.position.x = 0.3; hoist.add(harm);
+  const hdrum = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.22, 12), M.darkMetal); hdrum.position.set(0.62, -0.08, 0); hoist.add(hdrum);
+  const flir = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), M.graphite); flir.position.set(0, -0.95, 2.45); body.add(flir);
+  const flens = new THREE.Mesh(new THREE.CircleGeometry(0.1, 16), M.lens); flens.position.set(0, -0.95, 2.67); body.add(flens);
+  for (const z of [-3.6, -5.0]) { const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.45, 6), M.darkMetal); ant.position.set(0, 0.85 + (z + 3.6) * -0.03, z); ant.rotation.x = -0.4; body.add(ant); }
   // 尾梁、垂尾、平尾
   body.add(cylinderBetween(new THREE.Vector3(0, 0.35, -2.8), new THREE.Vector3(0, 0.75, -8.6), 0.42, 0.17, paint, 20));
   const stripe = cylinderBetween(new THREE.Vector3(0, 0.45, -4.2), new THREE.Vector3(0, 0.55, -5.4), 0.37, 0.31, orange, 20); body.add(stripe);

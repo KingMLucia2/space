@@ -7,6 +7,7 @@ import { concrete, facade, overcastSky, softSprite, smokeSprite } from '../textu
 import { makeNoise2D, mulberry32, clamp, smooth, lerp } from '../util.js';
 import { createParticles } from '../fx/particles.js';
 import { createDock } from './dock.js';
+import { createVehicle } from './vehicles.js';
 import { SUN_DIR, createSkyDome } from '../fx/atmosphere.js';
 
 const TN = makeNoise2D(77);
@@ -253,24 +254,12 @@ export async function buildCity(engine) {
   const carWheel = new THREE.CylinderGeometry(0.34, 0.34, 0.24, 12).rotateX(Math.PI / 2);
   // ---------- 救援车辆（被塌方挡住，警灯闪烁） ----------
   const sirens = [];
-  const vehicle = (x, z, ry, bodyColor, len = 8.5) => {
-    const g = new THREE.Group(); g.position.set(x, terrainHeight(x, z), z); g.rotation.y = ry; scene.add(g);
-    const paint = new THREE.MeshPhysicalMaterial({ color: bodyColor, roughness: 0.4, clearcoat: 0.7 });
-    const b = new THREE.Mesh(new THREE.BoxGeometry(2.5, 2.6, len * 0.7), paint); b.position.set(0, 1.9, -len * 0.12); g.add(b);
-    const cab = new THREE.Mesh(new THREE.BoxGeometry(2.5, 2.2, len * 0.26), paint); cab.position.set(0, 1.7, len * 0.36); g.add(cab);
-    const win = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.9, 0.05), M.glass); win.position.set(0, 2.2, len * 0.49 + 0.01); g.add(win);
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.52, 0.3, len * 0.96), new THREE.MeshStandardMaterial({ color: 0xf0e6c8, roughness: 0.5 })); stripe.position.set(0, 1.2, 0); g.add(stripe);
-    for (const [wx, wz] of [[1.15, len * 0.33], [-1.15, len * 0.33], [1.15, -len * 0.3], [-1.15, -len * 0.3]]) { const wh = new THREE.Mesh(carWheel, M.rubber); wh.scale.set(1.6, 1.6, 1.4); wh.position.set(wx, 0.55, wz); wh.rotation.y = Math.PI / 2; g.add(wh); }
-    const bar = new THREE.Group(); bar.position.set(0, 2.9, len * 0.36); g.add(bar);
-    const red = new THREE.MeshStandardMaterial({ color: 0, emissive: 0xff2010, emissiveIntensity: 0 }), blue = new THREE.MeshStandardMaterial({ color: 0, emissive: 0x2050ff, emissiveIntensity: 0 });
-    const lr = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.3), red); lr.position.x = 0.5; bar.add(lr);
-    const lb = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.3), blue); lb.position.x = -0.5; bar.add(lb);
-    g.traverse((o) => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
-    sirens.push({ red, blue, ph: sirens.length * 0.37 });
-    return g;
+  const vehicle = (x, z, ry, kind) => {
+    const v = createVehicle(kind, carWheel); v.group.position.set(x, terrainHeight(x, z), z); v.group.rotation.y = ry; scene.add(v.group);
+    sirens.push({ red: v.red, blue: v.blue, ph: sirens.length * 0.37 }); return v.group;
   };
   // 车头朝西（-x），停在塌方东侧
-  vehicle(326, 2.2, -Math.PI / 2, 0xb3241c); vehicle(338, -2.6, -Math.PI / 2 + 0.08, 0xb3241c); vehicle(352, 2.0, -Math.PI / 2 - 0.05, 0xeeeeea, 6.5);
+  vehicle(326, 2.2, -Math.PI / 2, 'fire'); vehicle(338, -2.6, -Math.PI / 2 + 0.08, 'fire'); vehicle(352, 2.0, -Math.PI / 2 - 0.05, 'ambulance');
   // ---------- 汽车（压扁/蒙尘） ----------
   const cars = [], carColors = [[0.75, 0.75, 0.73], [0.55, 0.56, 0.58], [0.45, 0.12, 0.1], [0.16, 0.22, 0.35], [0.12, 0.12, 0.13], [0.62, 0.58, 0.5]];
   for (let k = 0; k < 70; k++) {

@@ -25,6 +25,11 @@ rms = np.sqrt(np.mean(mix ** 2)); mix = mix * (0.12 / rms)
 mix = np.tanh(mix * 1.1) / np.tanh(1.1)
 mix /= max(1.0, np.max(np.abs(mix)) / 0.97)
 sf.write('build/mix.wav', mix.astype(np.float32), SR)
+# 无旁白版（配乐＋音效＋对讲机），方便换真人配音
+nv = music * (0.62 * (1 - 0.25 * np.clip(duck, 0, 1)))[:, None] + sfx * sgain[:, None] + stereo(rad * 0.8, 0.1)
+nv[: int(0.3 * SR)] *= np.linspace(0, 1, int(0.3 * SR))[:, None]; nv[-int(1.2 * SR):] *= np.linspace(1, 0, int(1.2 * SR))[:, None]
+nv = nv * (0.11 / np.sqrt(np.mean(nv ** 2))); nv = np.tanh(nv * 1.1) / np.tanh(1.1); nv /= max(1.0, np.max(np.abs(nv)) / 0.97)
+sf.write('build/mix_no_voice.wav', nv.astype(np.float32), SR)
 print('mix rms %.3f peak %.3f' % (np.sqrt(np.mean(mix ** 2)), np.max(np.abs(mix))))
 
 # 字幕
@@ -43,7 +48,7 @@ WrapStyle: 2
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Narr,WenQuanYi Zen Hei,46,&H00F2F2F2,&H000000FF,&H00101010,&H64000000,0,0,0,0,100,100,2,0,1,2.2,1.2,2,80,80,128,1
+Style: Narr,WenQuanYi Zen Hei,46,&H00F2F2F2,&H000000FF,&H00101010,&H64000000,0,0,0,0,100,100,2,0,1,2.2,1.2,2,80,80,34,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

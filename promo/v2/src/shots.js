@@ -7,7 +7,7 @@ import { drawHeli, drawHuman, drawVictim, drawCrevice, victimBox, drawStretcher 
 import { drawAirport } from './models/airport.js';
 import { drawTracked, drawROV, drawUSV, dockPlate, DOCK_GAP } from './models/payloads.js';
 import { SCREEN, FILL_D, GOD, GOD_FOG, setGodCam, dots, LAST, screenView, camForScreen, drawCommand, drawScreenContent, drawDevice, DEVICES, drawGod, hoverDrone } from './models/room.js';
-import { detectHUD, titleCard, brackets, FONT, MONO, mixHex } from './hud.js';
+import { detectHUD, titleCard, brackets, drawDot, FONT, MONO, mixHex } from './hud.js';
 import { compose, xform } from './prims.js';
 import { scanRings, downwash, routeLine, survivorBeacon, scanFan } from './fx.js';
 import { clamp, lerp, range, smooth, smoother, easeIn, easeOut, shake, mulberry32 } from './util.js';
@@ -236,6 +236,70 @@ const CREDITS_SHOT = { prepare: loadCredits, update(t) { // 片尾：绿色片�
   const out = smooth(range(t, 24.8, 26)); if (out > 0) { hud.save(); hud.globalAlpha = out; hud.fillStyle = '#000'; hud.fillRect(0, 0, W, H); hud.restore(); }
 } };
 
+// —— 封面（不进成片时间线）：低机位，六足机器人站在废墟前，无人机悬停在上方、对接光束相连；背景是虚化的灾区和被困者红点；左侧片名 ——
+const COVER_TXT = '六合空地协同生命搜救系统上天入地，不放弃每一个生命六轴无人机六足机器人';
+export const COVER_VIEW = { yaw: 0.62, pitch: 0.1, fov: 38, ch: 0.42, hx: 0.85, hz: 3.3, dz: 2.0, hover: 1.3, fog: [25, 520], face: [-0.75, 0.66], dyaw: 0.2, beacons: false, beacon: 45, bh: 12, warm: 0.35, embers: 28, marks: [[1010, 640, 2, 1.1], [1735, 598, 4, 0.18]] };
+const COV_BG = mkCanvas(W, H).getContext('2d');
+function coverLabel(h, p, zh, en, dx, dy) { // 中英双语标注：锚点＋折线引线＋文字
+  if (!p) return; h.save(); h.strokeStyle = 'rgba(159,232,255,0.85)'; h.fillStyle = '#9fe8ff'; h.lineWidth = 1.5;
+  const ex = p.x + dx, ey = p.y + dy, tx = ex + (dx > 0 ? 165 : -165);
+  h.beginPath(); h.arc(p.x, p.y, 4, 0, 7); h.fill(); h.beginPath(); h.arc(p.x, p.y, 9, 0, 7); h.globalAlpha = 0.5; h.stroke(); h.globalAlpha = 1;
+  h.beginPath(); h.moveTo(p.x, p.y); h.lineTo(ex, ey); h.lineTo(tx, ey); h.stroke();
+  h.textAlign = dx > 0 ? 'right' : 'left'; const x = tx; // 文字对齐引线外端，避开斜线
+  h.textBaseline = 'bottom'; h.font = `500 27px ${FONT}`; h.fillStyle = '#eaf6ff'; h.fillText(zh, x, ey - 8);
+  h.textBaseline = 'top'; h.font = `500 14px ${MONO}`; h.letterSpacing = '3px'; h.fillStyle = '#7fd6ff'; h.fillText(en, x, ey + 8); h.letterSpacing = '0px';
+  h.restore();
+}
+const COVER_SHOT = { extra: true, prepare: () => Promise.all(['300', '400', '500', '700', '900'].map((w) => document.fonts.load(`${w} 40px "Noto Sans SC"`, COVER_TXT))).catch(() => null), update(t) {
+  const T = 140 + t; // 烟柱、火光取充分发展后的状态
+  const V = COVER_VIEW, yaw = V.yaw, pitch = V.pitch;
+  const right = [Math.cos(yaw), 0, -Math.sin(yaw)], fh = [-Math.sin(yaw), 0, -Math.cos(yaw)]; // 相机的右方、水平前方
+  const camDir = (cx, cz) => Math.atan2(right[0] * cx - fh[0] * cz, right[2] * cx - fh[2] * cz); // 相机坐标里的水平方向（cz>0 朝向镜头）→ 世界航向
+  // 六足机器人在相机右前方 hz 米处；无人机在同一条视线上再远 dz 米、悬停在它上方，画面上对接光束竖直
+  const HX = [REST.x, 0, REST.z]; const C = [HX[0] - right[0] * V.hx - fh[0] * V.hz, V.ch, HX[2] - right[2] * V.hx - fh[2] * V.hz];
+  const kD = (V.hz + V.dz) / V.hz; const D = [C[0] + (HX[0] - C[0]) * kD, HEX.standH - HANG_Y + V.hover, C[2] + (HX[2] - C[2]) * kD];
+  const view = () => { setCamYPR(C, yaw, pitch, 0, V.fov); FOG.start = V.fog[0]; FOG.end = V.fog[1]; };
+  // 背景（灾区，可选远处的红色生命信标）单独渲染后轻微虚化，形成景深，让前景设备更突出
+  renderPass(() => { view(); drawCity(T); if (V.beacons) CITY.survivors.forEach(([x, z], i) => { if (Math.hypot(x - C[0], z - C[2]) > V.beacon) survivorBeacon(x, z, T, i, 1, V.bh, 6); }); }, COV_BG);
+  view();
+  custom(2e6, (L) => { const g = L.createRadialGradient(1380, 690, 20, 1380, 690, 900); g.addColorStop(0, `rgba(255,120,50,${V.warm})`); g.addColorStop(0.5, `rgba(255,90,40,${V.warm * 0.35})`); g.addColorStop(1, 'rgba(255,90,40,0)'); L.save(); L.translate(0, 690); L.scale(1, 0.26); L.translate(0, -690); L.fillStyle = g; L.fillRect(0, 0, W, H * 3); L.restore(); });
+  custom(1e6, (L) => { L.filter = 'blur(1.3px) brightness(0.82)'; L.drawImage(COV_BG.canvas, 0, 0); L.filter = 'none'; });
+  // 六足机器人站在废墟前，探测面板展开；无人机悬停在正上方，对接光束相连
+  const hh = camDir(V.face[0], V.face[1]);
+  const pose = { x: HX[0], y: HEX.standH, z: HX[2], heading: hh };
+  const hf = drawHexapod({ pose, feet: standFeet(pose), scanner: 1, glow: 1 });
+  const df = drawDrone({ pos: D, heading: hh + V.dyaw, pitch: 0.03, roll: -0.03, rot: rotorSpin(T, { t0: 0 }), t: 120.03, strobe: true, ring: 2.4, latch: 1 });
+  const plate = hf([0, 0.12, 0]), belly = df([0, -0.2, 0]);
+  polyline([belly, plate], { stroke: '#9fe8ff', width: 1.8, alpha: 0.9, glow: 1.2, dash: [7, 7], fade: false });
+  { const pb = project(belly), pl = project(hf([-0.26, 0.12, 0])), pr = project(hf([0.26, 0.12, 0])), pc = project(plate); // 对接引导光锥（屏幕空间，叠加发光）
+    if (pb && pl && pr && pc) custom((pb.d + pc.d) / 2, (L) => { const xs = [pl.x, pr.x], x0 = Math.min(...xs), x1 = Math.max(...xs); const g = L.createLinearGradient(0, pb.y, 0, pc.y); g.addColorStop(0, 'rgba(120,220,255,0.02)'); g.addColorStop(1, 'rgba(120,220,255,0.16)');
+      L.globalCompositeOperation = 'lighter'; L.fillStyle = g; L.beginPath(); L.moveTo(pb.x - 6, pb.y); L.lineTo(pb.x + 6, pb.y); L.lineTo(x1, pc.y); L.ellipse(pc.x, pc.y, (x1 - x0) / 2, (x1 - x0) * 0.12, 0, 0, Math.PI); L.lineTo(x0, pc.y); L.closePath(); L.fill(); }); }
+  stream(belly, plate, 0, T, 16, 0.9, '#c8f6ff', 0.8);
+  scanRings([plate[0], plate[1] + 0.01, plate[2]], T, { radius: 0.5, alpha: 0.9, n: 2 });
+  downwash([HX[0], 0, HX[2]], T, 0.6, 1.0);
+  groundGrid([HX[0], 0, HX[2]], 12, 0.5, 0.35);
+  if (V.embers) { const up = [Math.sin(yaw) * Math.sin(pitch), Math.cos(pitch), Math.cos(yaw) * Math.sin(pitch)], e = []; // 飘在空中的火星
+    for (let i = 0; i < V.embers; i++) { const cz = 2.5 + 12 * hash3(i, 1, 5), cx = (0.05 + 0.6 * hash3(i, 2, 5)) * cz * 0.75, cy = (hash3(i, 3, 5) - 0.35) * cz * 0.55; for (let k = 0; k < 3; k++) e.push(C[k] + right[k] * cx + fh[k] * cz + up[k] * cy); }
+    points(new Float32Array(e), { color: '#ffc38a', alpha: 0.8, size: 2.6, glow: 2.2, glowColor: '#ff6a1a', fade: false, sizeByDepth: true, minSize: 1.4 }); }
+  POST.vignette = 0; POST.grain = 0.04;
+  // 暗角与左侧压暗（画在界面层底下，文字不受影响）
+  const h = hud; h.save();
+  const vg = h.createRadialGradient(W * 0.64, H * 0.5, H * 0.3, W * 0.55, H * 0.5, H * 1.05); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.62)'); h.fillStyle = vg; h.fillRect(0, 0, W, H);
+  const g = h.createLinearGradient(0, 0, 1100, 0); g.addColorStop(0, 'rgba(1,6,12,0.75)'); g.addColorStop(0.55, 'rgba(1,6,12,0.35)'); g.addColorStop(1, 'rgba(1,6,12,0)'); h.fillStyle = g; h.fillRect(0, 0, 1100, H);
+  brackets(h, 48, 48, W - 96, H - 96, 46, 'rgba(140,220,255,0.45)', 2);
+  for (const [x, y, i, tp] of V.marks || []) { h.save(); h.strokeStyle = 'rgba(255,90,70,0.6)'; h.lineWidth = 1.5; h.setLineDash([3, 4]); h.beginPath(); h.moveTo(x, y + 16); h.lineTo(x, y + 56); h.stroke(); h.restore(); drawDot(h, x, y, 1, tp, i - 1, 1, 11); } // 废墟里的被困者红点（与片中指挥大屏一致）
+  // 片名
+  const x0 = 140; h.textAlign = 'left'; h.textBaseline = 'alphabetic';
+  h.font = `500 19px ${MONO}`; h.letterSpacing = '4px'; h.fillStyle = '#7fd6ff'; h.fillText('AIR-GROUND SEARCH & RESCUE SYSTEM', x0, 322); h.letterSpacing = '0px';
+  h.shadowColor = 'rgba(87,207,255,0.5)'; h.shadowBlur = 36; h.fillStyle = '#ffffff';
+  h.font = `900 236px ${FONT}`; h.fillText('六合', x0 - 14, 548);
+  h.shadowBlur = 16; h.font = `500 56px ${FONT}`; h.fillText('空地协同生命搜救系统', x0, 640);
+  h.shadowBlur = 0; h.fillStyle = PAL.orange; h.fillRect(x0, 680, 120, 5);
+  h.font = `300 44px ${FONT}`; h.fillStyle = 'rgba(234,246,255,0.95)'; h.fillText('上天入地，不放弃每一个生命', x0, 756);
+  // 设备标注
+  if (V.labels !== false) { coverLabel(h, project(df([-0.75, 0.05, 0.75])), '六轴无人机', 'HEXACOPTER', -80, -64); coverLabel(h, project(hf([0.2, 0.0, -0.18])), '六足机器人', 'HEXAPOD ROBOT', 150, 64); }
+  h.restore();
+} };
 const SH = {
   // ———————— 一、灾区与出发 ————————
   s01: { update(t) { // 粒子从四面八方汇聚成城市 → 地震波从震中扩散 → 楼体坍塌、扬尘、起火
@@ -557,4 +621,4 @@ const SH = {
   s29: CREDITS_SHOT,
 };
 
-export const SHOTS = DURS.map(([id, dur]) => ({ id, dur, ...SH[id] }));
+export const SHOTS = [...DURS.map(([id, dur]) => ({ id, dur, ...SH[id] })), { id: 'cover', dur: 1, ...COVER_SHOT }]; // cover 是封面静帧，不进成片

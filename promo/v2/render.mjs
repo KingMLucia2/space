@@ -1,5 +1,5 @@
 // 逐帧渲染：本地起 HTTP 服务，无头 Chromium（SwiftShader WebGL）打开 index.html，按镜头逐帧截图，再用 ffmpeg 编码。
-// 用法：node render.mjs --shots s01,s02 [--still 12] [--step 6] [--w 1920 --h 1080] [--encode]
+// 用法：node render.mjs --shots s01,s02 [--still 12] [--png] [--step 6] [--w 1920 --h 1080] [--encode]
 import { createRequire } from 'module';
 import http from 'http'; import fs from 'fs'; import path from 'path'; import { execFileSync } from 'child_process';
 const require = createRequire(import.meta.url);
@@ -22,7 +22,7 @@ await page.goto(`http://localhost:${server.address().port}/v2/index.html`);
 await page.waitForFunction('window.ready === true', null, { timeout: 120000 });
 if (args.style && args.style !== true) await page.evaluate(`setStyle(${JSON.stringify(args.style)})`);
 const all = await page.evaluate('shotList()');
-const ids = args.shots && args.shots !== true ? String(args.shots).split(',') : all.map((s) => s.id);
+const ids = args.shots && args.shots !== true ? String(args.shots).split(',') : all.filter((s) => !s.extra).map((s) => s.id); // 不指定镜头时只渲染成片镜头（跳过封面等）
 for (const id of ids) {
   const t0 = Date.now();
   const { frames } = await page.evaluate(`prepare(${JSON.stringify(id)})`);
@@ -32,8 +32,9 @@ for (const id of ids) {
     fs.mkdirSync(path.join(root, 'out/v2/stills'), { recursive: true });
     for (const f of list) {
       await page.evaluate(`frame(${JSON.stringify(id)}, ${f})`);
-      const out = path.join(root, `out/v2/stills/${id}_${String(f).padStart(4, '0')}${args.style && args.style !== true ? '_' + args.style : ''}.jpg`);
-      fs.writeFileSync(out, await page.screenshot({ type: 'jpeg', quality: 92 }));
+      const ext = args.png ? 'png' : 'jpg'; // --png 输出无损静帧（封面用）
+      const out = path.join(root, `out/v2/stills/${id}_${String(f).padStart(4, '0')}${args.style && args.style !== true ? '_' + args.style : ''}.${ext}`);
+      fs.writeFileSync(out, await page.screenshot(args.png ? { type: 'png' } : { type: 'jpeg', quality: 92 }));
       console.log('still', out);
     }
     continue;

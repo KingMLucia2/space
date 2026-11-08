@@ -1,7 +1,8 @@
 // 第二版帧驱动：按镜头逐帧绘制；镜头可以声明入场转场（擦除、扫描、光圈、叠化），转场期间同时画上一镜头的延续和本镜头，再按蒙版合成。
 // 同一地点的连续镜头不用转场，而是让相机路径跨镜头连续（见 shots.js）。
 import { W, H, out, outCtx, composite, flush, resetFrame, mkCanvas, POST, hud, STYLE, setStyle } from './core.js';
-import { SHOTS } from './shots.js';
+import { SHOTS, COVER_VIEW } from './shots.js';
+window.COVER_VIEW = COVER_VIEW; // 调封面构图用
 import { UI_TEXT } from './hud.js';
 import { clamp, smooth } from './util.js';
 
@@ -117,5 +118,5 @@ function particleBurst(o, src, q, dir) {
   }
   o.globalAlpha = 1;
 }
-window.shotList = () => SHOTS.map((s) => ({ id: s.id, dur: s.dur }));
+window.shotList = () => SHOTS.map((s) => ({ id: s.id, dur: s.dur, extra: !!s.extra }));
 window.ready = true;

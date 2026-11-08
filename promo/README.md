@@ -63,21 +63,24 @@ v2/assemble.sh                                        # → out/宣传片_v2.mp4
 
 ## 第三版（粒子点阵、中文旁白、片尾字幕）
 
-在第二版工程上继续：默认渲染风格改为粒子点阵（`core.js` 的 `STYLE.mode = 'dots'`，点按世界坐标固定在物体边上），镜头扩充到 29 个（含 26 秒片尾），共 144 秒。
+在第二版工程上继续：默认渲染风格改为粒子点阵（`core.js` 的 `STYLE.mode = 'dots'`，点按世界坐标固定在物体边上），镜头扩充到 29 个（含 26 秒片尾），共 146.4 秒。另有一个不进成片的 `cover` 镜头，用来出封面图。
 
 | 路径 | 内容 |
 | --- | --- |
 | `v2/src/models/payloads.js` | 通用对接盘、履带机器人、潜水机器人、无人船（片尾模块化演示） |
 | `v2/credits.local.json` | 片尾名单（本地文件，不提交；没有时显示占位） |
 | `audio/v3_narration.py` | 旁白：第一版文案，微软神经网络语音（需要能访问 speech.platform.bing.com） |
-| `audio/v3_score.py`、`audio/v3_mix.py` | 按 144 秒新时间轴合成配乐、音效并混音，另出 SRT |
+| `audio/v3_score.py`、`audio/v3_mix.py` | 按 146.4 秒新时间轴合成配乐、音效并混音，另出 SRT |
 
 ```bash
 node v2/render.mjs --shots s29 --range 0:260          # 长镜头可按帧段多进程渲染，最后再用 ffmpeg 编码
 (cd audio && .venv/bin/python v3_narration.py && .venv/bin/python v3_score.py && .venv/bin/python v3_mix.py)
 v2/assemble.sh                                        # → out/宣传片_v3.mp4
+node v2/render.mjs --shots cover --still 0 --png      # 封面 → out/v2/stills/cover_0000.png（成品另存为 out/宣传片_v3_封面.png/.jpg）
 ```
+
+封面构图参数在 `shots.js` 的 `COVER_VIEW`（机位、六足机器人与无人机的距离、悬停高度、红点位置等）。不指定 `--shots` 渲染全片时会跳过封面。
 
 ## 暂定内容
 
-项目名称“六合”和口号“上天入地，不放弃每一个生命”是暂定的。改名称时，需要改 `audio/lines.py` 里的旁白、`src/fx/hud.js` 的片尾字幕，然后重新生成旁白并重渲 `s26`。
+项目名称“六合”和口号“上天入地，不放弃每一个生命”是暂定的。改名称时，需要改 `audio/lines.py` 里的旁白、`src/fx/hud.js` 的片尾字幕，然后重新生成旁白并重渲 `s26`。第三版还要改 `v2/src/hud.js` 的 `titleCard`、`v2/src/shots.js` 片尾和封面里的文字，重渲 `s28`、`s29`、`cover`。

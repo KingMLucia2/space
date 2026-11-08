@@ -3,17 +3,17 @@
 import { W, H, PAL, setCam, setCamYPR, setReveal, setDisp, setView, renderPass, mkCanvas, POST, FOG, hud, project, custom, poly, polyline, points, ring, cam, line } from './core.js';
 import { drawCity, drawVehicles, CITY, groundGrid } from './models/city.js';
 import { drawDrone, drawHexapod, drawDock, rotorSpin, standFeet, gaitFeet, nominalFoot, HEX, HANG_Y, DOCK, dockTop } from './models/robots.js';
-import { drawHeli, drawHuman, drawVictim, drawCrevice, victimBox } from './models/extra.js';
+import { drawHeli, drawHuman, drawVictim, drawCrevice, victimBox, drawStretcher } from './models/extra.js';
 import { drawAirport } from './models/airport.js';
 import { drawTracked, drawROV, drawUSV, dockPlate, DOCK_GAP } from './models/payloads.js';
 import { SCREEN, FILL_D, GOD, GOD_FOG, setGodCam, dots, LAST, screenView, camForScreen, drawCommand, drawScreenContent, drawDevice, DEVICES, drawGod, hoverDrone } from './models/room.js';
 import { detectHUD, titleCard, brackets, FONT, MONO, mixHex } from './hud.js';
-import { compose } from './prims.js';
+import { compose, xform } from './prims.js';
 import { scanRings, downwash, routeLine, survivorBeacon, scanFan } from './fx.js';
 import { clamp, lerp, range, smooth, smoother, easeIn, easeOut, shake, mulberry32 } from './util.js';
 
 const DURS = [['s01', 7], ['s02', 4], ['s03', 3.5], ['s04', 3], ['s05', 4], ['s06', 3], ['s07', 4], ['s08', 3], ['s09', 3.5], ['s10', 2.5], ['s11', 4], ['s12', 4], ['s13', 3.5], ['s14', 3],
-  ['s15', 6], ['s16', 5], ['s17', 3], ['s18', 4], ['s19', 3.5], ['s20', 3], ['s21', 4], ['s22', 5], ['s23', 4], ['s24', 3.5], ['s25', 4], ['s26', 8], ['s27', 5], ['s28', 8], ['s29', 26]];
+  ['s15', 6], ['s16', 5], ['s17', 3], ['s18', 4], ['s19', 3.5], ['s20', 3], ['s21', 4], ['s22', 5], ['s23', 6.4], ['s24', 3.5], ['s25', 4], ['s26', 8], ['s27', 5], ['s28', 8], ['s29', 26]];
 export const T0 = {}; { let a = 0; for (const [id, d] of DURS) { T0[id] = a; a += d; } }
 
 // —— 向量与相机工具 ——
@@ -493,22 +493,28 @@ const SH = {
     const xc = 560 - 16 * tc; combined([xc + 12 * (tau - tc), 93, 35], Math.PI / 2, 0.18, 0, rotorSpin(tau + 100, { t0: 0 }), tau);
     ambient(T, 60, 0.25);
   } },
-  s23: { transIn: { type: 'particles', dur: 0.7 }, update(t) { // 绞车救援：直升机悬停在废墟上空，救援队员顺钢缆降到被困者位置，红色标记变绿
-    const T = T0.s23 + t; const HP = [VICTIM[0] - 0.9, 21, VICTIM[2] + 0.2];
-    setCam(vl([16, 2.5, 10], [14.8, 2.3, 9.2], smooth(t / 4)), [0.5, 10, -3], 58); FOG.start = 15; FOG.end = 160;
+  s23: { transIn: { type: 'particles', dur: 0.7 }, update(t) { // 绞车救援：直升机悬停，被救人员躺在担架上，由绞车吊上直升机；担架离地时红色标记变绿
+    const T = T0.s23 + t; const hd = 0.3; const go = easeIn(range(t, 5.4, 6.4));
+    const HP = [VICTIM[0] - 1.79 - Math.sin(hd) * go * 7, 21 + 0.15 * Math.sin(T * 1.1) + go * 1.5, VICTIM[2] + 0.136 - Math.cos(hd) * go * 7];
+    const ground = 1.45, G = [VICTIM[0], ground, VICTIM[2]];
+    const tip = xform(HP, hd, 0.1 * go)([1.75, 1.0, 0.4]);
+    const lift = smoother(range(t, 1.6, 5.3)); const sway = 0.06 * lift * Math.sin(T * 1.7);
+    const ringY = lerp(ground + 0.95, tip[1] - 1.3, lift); const sp = [lerp(G[0], tip[0], lift) + sway, ringY - 0.95, lerp(G[2], tip[2], lift)];
+    // 镜头跟着担架一起升起：起初略高于担架、看清躺着的人，上升途中直升机从画面上方进入
+    const camP = [G[0] + lerp(3.3, 4.6, lift), ground + 1.55 + (sp[1] - ground) * 0.92, G[2] + lerp(2.9, 4.1, lift)];
+    setCam(camP, [sp[0], sp[1] + 0.35 + 1.4 * smooth(range(t, 3.4, 5.6)), sp[2]], 55); FOG.start = 15; FOG.end = 160;
     drawCity(T); ambient(T, 12, 0.35, '#c3d3df');
-    const hf = drawHeli({ pos: HP, heading: 0.3, pitch: 0, rotor: T * 30, speed: 1, t: T, search: true, cable: 0 });
-    const tip = hf([1.75, 1.0, 0.4]); const ground = 1.45; const dn = smoother(range(t, 0.2, 2.5)); const yB = lerp(tip[1] - 1.5, ground + 1.75, dn);
-    polyline([tip, [tip[0], yB + 1.75, tip[2]]], { stroke: '#e8f4ff', width: 1.6, alpha: 0.95, fade: false, dots: false });
-    const rx = tip[0], rz = tip[2]; drawHuman({ pos: [rx, yB, rz], heading: -1.2, phase: 0, run: 0, vest: PAL.orange, helmet: '#fff', armsUp: dn < 1 });
-    // 探照灯光锥
+    drawHeli({ pos: HP, heading: hd, pitch: 0.1 * go, rotor: T * 30, speed: 1, t: T, search: true, cable: 0 });
+    const ringP = drawStretcher(sp, 2.42 + 0.35 * lift * Math.sin(T * 0.9), T, { roll: 0.04 * lift * Math.sin(T * 2.3) });
+    polyline([tip, ringP], { stroke: '#e8f4ff', width: 1.6, alpha: 0.95, fade: false, dots: false });
+    // 救援队员：在担架另一侧扶着，担架离地后挥手示意
+    drawHuman({ pos: [G[0] + 1.2 * 0.66 - 0.6 * 0.75, ground, G[2] - 1.2 * 0.75 - 0.6 * 0.66], heading: 2.6, phase: 0, run: 0, vest: PAL.orange, helmet: '#fff', armsUp: (t > 1.2 && t < 1.6) || t > 2.2 });
     const lc = []; for (let i = 0; i < 260; i++) { const u = hash3(i, 7, 1), a = hash3(i, 2, 9) * 6.283, r = u * 3.2 * Math.sqrt(hash3(i, 4, 4)); lc.push(HP[0] + 0.3 + Math.cos(a) * r, HP[1] - 1 - u * (HP[1] - 2), HP[2] + Math.sin(a) * r); }
-    points(new Float32Array(lc), { color: '#fff3d6', alpha: 0.35, size: 2, sizeByDepth: true, glow: 0.4, glowColor: '#ffd9a8', fade: false });
-    downwash([rx, ground - 0.9, rz], T, 0.9, 2.2);
-    const gk = smooth(range(t, 2.55, 2.85)); const col = gk < 0.5 ? PAL.red : PAL.green; const ph = (T * 0.9) % 1; const gy = ground + 0.05;
-    poly(ring([VICTIM[0], gy, VICTIM[2]], 0.6 + ph * 2.2, [0, 1, 0], 48), { stroke: col, width: 2.2, alpha: 1 - ph, glow: 1.4 * (1 - ph), glowColor: col, fade: false, dots: false });
-    polyline([[VICTIM[0], gy, VICTIM[2]], [VICTIM[0], gy + 4, VICTIM[2]]], { stroke: col, width: 2.2, alpha: 0.9, glow: 1.5, glowColor: col, fade: false, dots: false });
-    if (gk > 0 && gk < 1) poly(ring([VICTIM[0], gy, VICTIM[2]], 0.5 + gk * 5, [0, 1, 0], 64), { stroke: '#dffff0', width: 2.5, alpha: 1 - gk, glow: 2 * (1 - gk), fade: false, dots: false });
+    points(new Float32Array(lc), { color: '#fff3d6', alpha: 0.3 * (1 - go), size: 2, sizeByDepth: true, glow: 0.4, glowColor: '#ffd9a8', fade: false });
+    downwash([G[0], ground - 0.9, G[2]], T, 0.9 * (1 - go), 2.2);
+    const gk = smooth(range(t, 1.85, 2.15)); const col = gk < 0.5 ? PAL.red : PAL.green; const ph = (T * 0.9) % 1; const gy = ground + 0.05;
+    poly(ring([G[0], gy, G[2]], 0.6 + ph * 2.2, [0, 1, 0], 48), { stroke: col, width: 2.2, alpha: 1 - ph, glow: 1.4 * (1 - ph), glowColor: col, fade: false, dots: false });
+    if (gk > 0 && gk < 1) poly(ring([G[0], gy, G[2]], 0.5 + gk * 5, [0, 1, 0], 64), { stroke: '#dffff0', width: 2.5, alpha: 1 - gk, glow: 2 * (1 - gk), fade: false, dots: false });
   } },
   s24: { transIn: { type: 'particles', dur: 0.7 }, update(t) { // 结合体降落在基站平台上，平台开始下降
     const T = T0.s24 + t; const k = smoother(range(t, 0, 2.4)); const lift = 1 - smooth(range(t, 2.6, 3.5)) * 0.4;

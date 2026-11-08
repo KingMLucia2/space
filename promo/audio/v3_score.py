@@ -5,9 +5,11 @@
 import numpy as np, soundfile as sf
 from dsp import *
 
-DUR = 144.0; N = int(DUR * SR)
+DUR = 146.4; N = int(DUR * SR)
+SHIFT_AT, EXT = 89.3, 2.4  # 绞车救援镜头加长 2.4 秒：此后的事件整体顺延
 music = np.zeros((N, 2)); sfx = np.zeros((N, 2))
-def add(buf, x, t0, gain=1.0, pan=0.0):
+def add(buf, x, t0, gain=1.0, pan=0.0, raw=False):
+    if not raw and t0 >= SHIFT_AT: t0 += EXT
     x = stereo(x, pan) if x.ndim == 1 else x
     i = int(t0 * SR); j = min(N, i + len(x))
     if j > i: buf[i:j] += x[: j - i] * gain
@@ -98,7 +100,13 @@ for k, c in enumerate(['Dm', 'Bb', 'F', 'C']):
 mel = [(80.5, 74, 1.2), (81.7, 72, 0.6), (82.3, 69, 0.6), (82.9, 70, 1.2), (84.1, 69, 0.6), (84.7, 65, 0.6), (85.3, 65, 1.2), (86.5, 67, 0.6), (87.1, 69, 1.8), (88.0, 72, 1.0), (89.0, 74, 1.6)]
 for t0, m, d in mel:
     x = (saw(mtof(m), d + 0.3) * 0.5 + saw(mtof(m) * 1.003, d + 0.3) * 0.5) * env(int((d + 0.3) * SR), 0.06, 0.2, 0.8, 0.25); add(music, lp(x, 2800), t0, 0.13, pan=-0.1)
-add(music, boom(1.0), 84.0, 0.6); add(music, cymbal_swell(2.0), 82.0, 0.8); add(music, pad(CH['F'] + [72, 77], 3.0, a=0.3, r=1.5, cutoff=3000), 88.2, 0.35)
+add(music, boom(1.0), 84.0, 0.6); add(music, cymbal_swell(2.0), 82.0, 0.8)
+# 绞车把担架吊上直升机：高潮段多一小节，旋律升到高处再落下
+add(music, pad(CH['Dm'] + [CH['Dm'][0] + 24], BAR + 1.2, a=0.15, r=1.2, cutoff=2600), 90.1, 0.5, raw=True)
+add(music, lp(saw(mtof(BASS['Dm']), BAR * 0.95) * env(int(BAR * 0.95 * SR), 0.01, 0.3, 0.6, 0.2), 320), 90.1, 0.35, raw=True)
+for b in range(4): add(music, kick(0.8), 90.1 + b * BEAT, 0.42, raw=True); add(music, hat(0.8), 90.1 + b * BEAT + BEAT / 2, 0.38, raw=True)
+add(music, pad(CH['F'] + [72, 77], 3.4, a=0.4, r=1.6, cutoff=3000), 87.4, 0.35)
+for t0, m, d in [(90.1, 77, 1.0), (91.0, 76, 1.4)]: add(music, lp((saw(mtof(m), d + 0.3) * 0.5 + saw(mtof(m) * 1.003, d + 0.3) * 0.5) * env(int((d + 0.3) * SR), 0.06, 0.2, 0.8, 0.25), 2800), t0, 0.12, pan=-0.1, raw=True)
 # 89.5–97 返回基站：落回 F 大调，温暖
 add(music, pad(CH['F'] + [65, 69], 7.0, a=0.5, r=2.5, cutoff=2000), 89.4, 0.5)
 for t0, m in [(90.2, 72), (91.4, 69), (92.6, 65), (93.8, 67), (95.0, 69)]: add(music, piano(m, 3.0, 0.7), t0, 0.5)
@@ -211,9 +219,11 @@ add(sfx, heli(5.0) * 0.85, 80.5, 1.0, pan=0.1)
 r = rotor(5.0, 118) * (0.1 + 1.1 * g); pan = np.clip((tt - 3.54) / 0.8, -0.2, 0.9) * 0.9
 add(sfx, np.stack([r * np.cos((pan + 1) * np.pi / 4), r * np.sin((pan + 1) * np.pi / 4)], 1), 80.5, 0.9)
 add(sfx, whoosh(1.2, vel=1.0), 83.45, 0.85)
-# s23 绞车救援：悬停的直升机、绞车电机、落地、变绿提示
-add(sfx, heli(4.0) * 0.8, 85.5, 1.3); add(sfx, servo(2.3, 260, 330) * 0.8, 85.7, 0.6)
-add(sfx, clunk(0.6), 88.0, 0.6); add(sfx, bell(83, 1.6, 0.8), 88.2, 0.45); add(sfx, bell(90, 1.6, 0.6), 88.3, 0.35)
+# s23 绞车救援（6.4 秒）：悬停的直升机、担架离地（变绿提示）、绞车收缆、直升机带着担架离开
+add(sfx, heli(6.4) * 0.8, 85.5, 1.3, raw=True)
+add(sfx, clunk(0.5), 87.1, 0.5, raw=True); add(sfx, servo(3.7, 240, 340) * 0.8, 87.1, 0.6, raw=True)
+add(sfx, bell(83, 1.6, 0.8), 87.4, 0.45, raw=True); add(sfx, bell(90, 1.6, 0.6), 87.5, 0.35, raw=True)
+add(sfx, clunk(0.6), 90.8, 0.5, raw=True); add(sfx, whoosh(1.4, vel=0.7), 90.9, 0.5, raw=True)
 # s24 降落基站、平台下降
 add(sfx, rotor(3.5, 118, np.clip(1.6 - T(3.5) / 2.2, 0.0, 1)), 89.5, 0.9); add(sfx, clunk(0.9), 91.9, 0.7); add(sfx, servo(1.0, 200, 150), 92.1, 0.6)
 # s25 平台下降、舱盖合拢、充电

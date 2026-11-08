@@ -2,8 +2,11 @@
 import json, numpy as np, soundfile as sf
 from dsp import SR, lp, radio, stereo
 
-DUR = 144.0; N = int(DUR * SR)
+DUR = 146.4; N = int(DUR * SR)
+SHIFT_AT, EXT = 89.3, 2.4  # 绞车救援镜头加长后，之后的旁白整体顺延
 meta = json.load(open('build/v3_narration.json'))
+for it in meta['narration'] + meta['radio']:
+    if it['start'] >= SHIFT_AT: it['start'] = round(it['start'] + EXT, 2)
 music, _ = sf.read('build/v3_music.wav'); sfx, _ = sf.read('build/v3_sfx.wav')
 voice = np.zeros(N); duck = np.zeros(N)
 for it in meta['narration']:

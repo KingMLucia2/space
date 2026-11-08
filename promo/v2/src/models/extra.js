@@ -64,7 +64,7 @@ export function drawHeli(s) {
 
 // —— 人物：简化线稿人形（头、躯干、四肢），pose: walk 相位，run 0~1 ——
 export function drawHuman(s) {
-  const f = xform(s.pos, s.heading || 0); const ph = s.phase || 0, run = s.run ?? 0; const st = { stroke: s.color || PAL.white, width: s.width || 1.5, alpha: s.alpha ?? 1, fade: s.fade ?? true };
+  const f = s.f || xform(s.pos, s.heading || 0); const ph = s.phase || 0, run = s.run ?? 0; const st = { stroke: s.color || PAL.white, width: s.width || 1.5, alpha: s.alpha ?? 1, fade: s.fade ?? true };
   const sw = Math.sin(ph) * (0.35 + 0.35 * run), lean = run * 0.18; const bob = Math.abs(Math.cos(ph)) * 0.04 * run;
   const hip = [0, 0.95 + bob, 0], neck = [0, 1.48 + bob, lean * 0.5], head = [0, 1.66 + bob, lean * 0.6];
   const fill = { fill: s.fill || 'rgba(4,12,20,0.96)', ...st };
@@ -84,6 +84,29 @@ export function drawHuman(s) {
     tube(f(elb), f(hand), { radius: 0.045, outer: st.stroke, inner: '#08131e', edge: 1.2, alpha: st.alpha, fade: st.fade });
   }
   return f;
+}
+
+// 救援担架（篮式担架）：船形双层护栏＋横肋，四根吊带汇到上方吊环；担架上躺着裹保温毯的被救人员
+export function drawStretcher(pos, heading, t, o = {}) {
+  const f = xform(pos, heading, o.pitch || 0, o.roll || 0); const L = 2.0, Wd = 0.62, D = 0.22;
+  const rim = (y, k) => { const a = []; for (let i = 0; i <= 16; i++) { const u = i / 16 * Math.PI * 2; const x = Math.cos(u) * Wd / 2 * k, z = Math.sin(u) * L / 2 * k; a.push([Math.sign(x) * Math.min(Math.abs(x) * 1.25, Wd / 2 * k), y, z]); } return a; };
+  const top = rim(D, 1), bot = rim(0.02, 0.86);
+  poly(bot.map(f), { fill: 'rgba(60,24,6,0.94)', stroke: PAL.orange, width: 1.6, alpha: 1, fade: false, dots: false, depthBias: 0.02 });
+  poly(top.map(f), { stroke: PAL.orange, width: 2.4, alpha: 1, fade: false, dots: false, depthBias: -0.01 });
+  for (let i = 0; i < 16; i += 2) line(f(top[i]), f(bot[i]), { stroke: '#ffb070', width: 1.2, alpha: 0.9, fade: false, dots: false });
+  for (let k = -3; k <= 3; k++) { const z = k * L / 8; line(f([-Wd / 2, D * 0.6, z]), f([Wd / 2, D * 0.6, z]), { stroke: '#ffb070', width: 1, alpha: 0.6, fade: false, dots: false, depthBias: 0.01 }); }
+  // 被救人员：仰卧，头朝 +z，身上盖金色保温毯
+  const pf = compose(f, [0, 0.13, -0.85], Math.PI, -Math.PI / 2);
+  drawHuman({ f: pf, phase: 0, run: 0, color: PAL.white, width: 1.5, fade: false, fill: 'rgba(10,18,26,0.98)' });
+  poly(ring([0, 0.27, 0.78], 0.12, [0, 1, 0], 16).map(f), { fill: 'rgba(12,22,32,0.98)', stroke: PAL.white, width: 1.6, alpha: 1, fade: false, dots: false, depthBias: -0.06 });
+  poly(ring([0, 0.3, 0.78], 0.13, [0, 1, 0], 16).slice(0, 9).map(f), { stroke: '#ffffff', width: 1.2, alpha: 0.8, fade: false, dots: false, depthBias: -0.065 }, false);
+  poly([[-0.24, 0.24, -0.6], [0.24, 0.24, -0.6], [0.27, 0.26, 0.5], [-0.27, 0.26, 0.5]].map(f), { fill: 'rgba(120,90,20,0.9)', stroke: '#ffd36b', width: 1.4, alpha: 1, glow: 0.4, glowColor: '#ffd36b', fade: false, dots: false, depthBias: -0.03 });
+  for (let k = 0; k < 4; k++) line(f([-0.24, 0.255, -0.42 + k * 0.25]), f([0.24, 0.255, -0.37 + k * 0.25]), { stroke: '#fff0b0', width: 1, alpha: 0.7, fade: false, dots: false, depthBias: -0.04 });
+  for (const sd of [-1, 1]) line(f([sd * Wd * 0.35, D + 0.01, -0.1]), f([sd * Wd * 0.35, D + 0.01, 0.1]), { stroke: '#ff3b30', width: 3, alpha: 0.9, fade: false, dots: false, depthBias: -0.05 });
+  // 吊带
+  const R = f([0, 0.95, 0]); for (const [x, z] of [[-Wd / 2, -L * 0.42], [Wd / 2, -L * 0.42], [-Wd / 2, L * 0.42], [Wd / 2, L * 0.42]]) line(f([x * 0.9, D, z]), R, { stroke: '#e8f4ff', width: 1.2, alpha: 0.9, fade: false, dots: false });
+  poly(ring(R, 0.06, [0, 0, 1], 12), { stroke: PAL.white, width: 2, alpha: 1, fade: false, dots: false });
+  return R;
 }
 
 // 坐姿人物背影（指挥员）

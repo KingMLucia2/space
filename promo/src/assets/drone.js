@@ -4,8 +4,9 @@ import * as THREE from 'three';
 import { M } from '../materials.js';
 import { clamp, smooth } from '../util.js';
 import { decalBand, panelNormal } from '../textures.js';
+import { rbox, bevelHex, filletLathe, bladeGeo } from '../geo.js';
 
-export function cylinderBetween(a, b, r1, r2, mat, seg = 10) {
+export function cylinderBetween(a, b, r1, r2, mat, seg = 18) {
   const dir = new THREE.Vector3().subVectors(b, a); const len = dir.length();
   const m = new THREE.Mesh(new THREE.CylinderGeometry(r2, r1, len, seg), mat);
   m.position.copy(a).addScaledVector(dir, 0.5);
@@ -20,64 +21,63 @@ export function createDrone() {
   const body = new THREE.Group(); root.add(body);
   const cast = (o) => { o.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } }); return o; };
 
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.34, 0.16, 48), M.white); body.add(hub);
+  const hub = new THREE.Mesh(filletLathe([[0, -0.08], [0.33, -0.08], [0.345, -0.05], [0.336, 0.058], [0.31, 0.08], [0, 0.08]], 0.014, 96), M.white); body.add(hub);
   // 顶罩：放射状面板缝和一圈螺丝
   const seams = []; for (let k = 0; k < 6; k++) seams.push([k / 6, 0.0, k / 6, 1.0]);
   seams.push([0, 0.55, 1, 0.55]);
   const screws = []; for (let k = 0; k < 12; k++) screws.push([(k + 0.5) / 12, 0.8]);
   const domeMat = M.white.clone(); domeMat.normalMap = panelNormal(512, seams, screws, 5); domeMat.normalScale.set(0.6, 0.6);
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.3, 48, 20, 0, Math.PI * 2, 0, Math.PI / 2), domeMat);
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.3, 96, 32, 0, Math.PI * 2, 0, Math.PI / 2), domeMat);
   dome.scale.y = 0.36; dome.position.y = 0.08; body.add(dome);
   const bandMat = new THREE.MeshPhysicalMaterial({ map: decalBand('RESCUE · HX-01', { repeat: 3 }), roughness: 0.35, clearcoat: 0.8, clearcoatRoughness: 0.15 });
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.343, 0.343, 0.055, 48, 1, true), bandMat); band.position.y = -0.03; body.add(band);
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.347, 0.347, 0.055, 96, 1, true), bandMat); band.position.y = -0.03; body.add(band);
   const strobeMat = M.ledWhite.clone();
-  const strobe = new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 8), strobeMat); strobe.position.set(0, 0.2, -0.1); body.add(strobe);
+  const strobe = new THREE.Mesh(new THREE.SphereGeometry(0.018, 16, 12), strobeMat); strobe.position.set(0, 0.2, -0.1); body.add(strobe);
   const mastA = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, 0.16, 6), M.carbon); mastA.position.set(-0.1, 0.22, -0.16); mastA.rotation.z = 0.25; body.add(mastA);
   // 顶部 GPS 天线和指示灯
-  for (const s of [-1, 1]) { const g = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.03, 16), M.offwhite); g.position.set(s * 0.12, 0.16, -0.06); body.add(g); }
-  const topLed = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 10), M.ledBlue); topLed.position.set(0, 0.19, 0.08); body.add(topLed);
+  for (const s of [-1, 1]) { const g = new THREE.Mesh(filletLathe([[0, 0], [0.05, 0], [0.046, 0.03], [0, 0.03]], 0.006, 40), M.offwhite); g.position.set(s * 0.12, 0.145, -0.06); body.add(g); }
+  const topLed = new THREE.Mesh(new THREE.SphereGeometry(0.02, 16, 12), M.ledBlue); topLed.position.set(0, 0.19, 0.08); body.add(topLed);
   // 机腹
-  const belly = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.21, 0.06, 6), M.gunmetal); belly.position.y = -0.11; body.add(belly);
+  const belly = new THREE.Mesh(bevelHex(0.24, 0.06, 0.01), M.gunmetal); belly.position.y = -0.11; body.add(belly);
   const ringMat = M.ledBlue.clone();
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.009, 6, 48), ringMat); ring.rotation.x = Math.PI / 2; ring.position.y = -0.143; body.add(ring);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.009, 10, 96), ringMat); ring.rotation.x = Math.PI / 2; ring.position.y = -0.143; body.add(ring);
   const hooks = [];
   for (let i = 0; i < 4; i++) {
     const a = i * Math.PI / 2 + Math.PI / 4;
     const pivot = new THREE.Group(); pivot.position.set(Math.sin(a) * 0.13, -0.14, Math.cos(a) * 0.13); pivot.rotation.y = a;
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.08, 0.03), M.darkMetal); arm.position.y = -0.04; pivot.add(arm);
-    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.022, 0.05), M.darkMetal); tip.position.set(0, -0.075, -0.02); pivot.add(tip);
+    const arm = new THREE.Mesh(rbox(0.035, 0.08, 0.03, 0.006), M.darkMetal); arm.position.y = -0.04; pivot.add(arm);
+    const tip = new THREE.Mesh(rbox(0.035, 0.022, 0.05, 0.006), M.darkMetal); tip.position.set(0, -0.075, -0.02); pivot.add(tip);
     body.add(pivot); hooks.push(pivot);
   }
   // 云台相机（机头前下方）
   const gimbal = new THREE.Group(); gimbal.position.set(0, -0.12, 0.27); body.add(gimbal);
-  const yoke = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.05), M.gunmetal); gimbal.add(yoke);
-  const camBall = new THREE.Mesh(new THREE.SphereGeometry(0.06, 20, 14), M.graphite); camBall.position.y = -0.06; gimbal.add(camBall);
-  const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.03, 0.03, 16), M.lens); lens.rotation.x = Math.PI / 2; lens.position.set(0, -0.06, 0.055); gimbal.add(lens);
+  const yoke = new THREE.Mesh(rbox(0.1, 0.05, 0.05, 0.01), M.gunmetal); gimbal.add(yoke);
+  const camBall = new THREE.Mesh(new THREE.SphereGeometry(0.06, 40, 28), M.graphite); camBall.position.y = -0.06; gimbal.add(camBall);
+  const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.03, 0.03, 32), M.lens); lens.rotation.x = Math.PI / 2; lens.position.set(0, -0.06, 0.055); gimbal.add(lens);
 
   const props = [];
   for (let i = 0; i < 6; i++) {
     const a = i * Math.PI / 3 + Math.PI / 6;
     const pivot = new THREE.Group(); pivot.rotation.y = a - Math.PI / 2; body.add(pivot);
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.034, 0.8, 14), M.carbon); arm.rotation.z = Math.PI / 2; arm.position.x = 0.71; pivot.add(arm);
-    const joint = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 0.08), M.gunmetal); joint.position.x = 0.36; pivot.add(joint);
-    const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.037, 0.037, 0.08, 14), M.orange); stripe.rotation.z = Math.PI / 2; stripe.position.x = 0.94; pivot.add(stripe);
-    const mount = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.05, 0.1), M.carbon); mount.position.set(DRONE.armReach, 0, 0); pivot.add(mount);
-    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.066, 0.072, 0.1, 22), M.darkMetal); motor.position.set(DRONE.armReach, 0.07, 0); pivot.add(motor);
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.066, 0.02, 22), M.metal); cap.position.set(DRONE.armReach, 0.13, 0); pivot.add(cap);
-    const led = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 10), (i === 0 || i === 5) ? M.ledWhite : M.ledBlue); led.position.set(DRONE.armReach, -0.04, 0); pivot.add(led);
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.034, 0.8, 28), M.carbon); arm.rotation.z = Math.PI / 2; arm.position.x = 0.71; pivot.add(arm);
+    const joint = new THREE.Mesh(rbox(0.1, 0.07, 0.08, 0.014), M.gunmetal); joint.position.x = 0.36; pivot.add(joint);
+    const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.037, 0.037, 0.08, 28), M.orange); stripe.rotation.z = Math.PI / 2; stripe.position.x = 0.94; pivot.add(stripe);
+    const mount = new THREE.Mesh(rbox(0.13, 0.05, 0.1, 0.01), M.carbon); mount.position.set(DRONE.armReach, 0, 0); pivot.add(mount);
+    const motor = new THREE.Mesh(filletLathe([[0, 0], [0.072, 0], [0.072, 0.03], [0.066, 0.036], [0.066, 0.09], [0.056, 0.1], [0, 0.1]], 0.004, 48), M.darkMetal); motor.position.set(DRONE.armReach, 0.02, 0); pivot.add(motor);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.058, 0.02, 48), M.metal); cap.position.set(DRONE.armReach, 0.13, 0); pivot.add(cap);
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.02, 16, 12), (i === 0 || i === 5) ? M.ledWhite : M.ledBlue); led.position.set(DRONE.armReach, -0.04, 0); pivot.add(led);
     const prop = new THREE.Group(); prop.position.set(DRONE.armReach, 0.15, 0); pivot.add(prop);
     const bladeMat = M.carbon.clone(); bladeMat.transparent = true;
-    for (const s of [-1, 1]) {
-      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.008, 0.055), bladeMat);
-      blade.position.x = s * 0.185; blade.rotation.x = s * 0.18; prop.add(blade);
-      const tip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.009, 0.05), M.orange); tip.position.x = s * 0.35; tip.rotation.x = s * 0.18; prop.add(tip);
-      tip.userData.tip = true;
+    const bg = bladeGeo({ r0: 0.02, r1: DRONE.propR - 0.004 }), tipG = bladeGeo({ r0: DRONE.propR - 0.05, r1: DRONE.propR - 0.003, chordRoot: 0.027, chordMax: 0.026, chordTip: 0.022, thick: 0.0058, twistRoot: 0.14, twistTip: 0.1, sections: 4 });
+    for (const s of [0, Math.PI]) {
+      const blade = new THREE.Mesh(bg, bladeMat); blade.rotation.y = s; prop.add(blade);
+      const tip = new THREE.Mesh(tipG, M.orange); tip.rotation.y = s; tip.scale.set(1, 1.08, 1.08); prop.add(tip); tip.userData.tip = true;
     }
-    const hubc = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.028, 0.03, 12), M.metal); prop.add(hubc);
+    const hubc = new THREE.Mesh(filletLathe([[0, -0.015], [0.03, -0.015], [0.028, 0.012], [0.012, 0.022], [0, 0.024]], 0.004, 32), M.metal); prop.add(hubc);
     const discMat = new THREE.MeshBasicMaterial({ color: 0x15171a, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
-    const disc = new THREE.Mesh(new THREE.RingGeometry(0.04, DRONE.propR, 48), discMat); disc.rotation.x = -Math.PI / 2; disc.renderOrder = 2; prop.add(disc);
+    const disc = new THREE.Mesh(new THREE.RingGeometry(0.04, DRONE.propR, 96), discMat); disc.rotation.x = -Math.PI / 2; disc.renderOrder = 2; prop.add(disc);
     const tipRingMat = new THREE.MeshBasicMaterial({ color: 0xf06a14, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
-    const tipRing = new THREE.Mesh(new THREE.RingGeometry(DRONE.propR - 0.035, DRONE.propR - 0.005, 48), tipRingMat); tipRing.rotation.x = -Math.PI / 2; tipRing.renderOrder = 3; prop.add(tipRing);
+    const tipRing = new THREE.Mesh(new THREE.RingGeometry(DRONE.propR - 0.035, DRONE.propR - 0.005, 96), tipRingMat); tipRing.rotation.x = -Math.PI / 2; tipRing.renderOrder = 3; prop.add(tipRing);
     props.push({ prop, bladeMat, discMat, tipRingMat, dir: i % 2 ? 1 : -1 });
   }
   // 起落架：左右两条滑橇
@@ -86,8 +86,8 @@ export function createDrone() {
   for (const s of [-1, 1]) {
     gear.add(cylinderBetween(new THREE.Vector3(s * 0.2, -0.12, 0.17), new THREE.Vector3(s * sx, sy, 0.24), 0.018, 0.02, M.carbon));
     gear.add(cylinderBetween(new THREE.Vector3(s * 0.2, -0.12, -0.17), new THREE.Vector3(s * sx, sy, -0.24), 0.018, 0.02, M.carbon));
-    const skid = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, sz * 2, 12), M.carbon); skid.rotation.x = Math.PI / 2; skid.position.set(s * sx, sy, 0); gear.add(skid);
-    for (const e of [-1, 1]) { const cap = new THREE.Mesh(new THREE.SphereGeometry(0.024, 10, 8), M.orange); cap.position.set(s * sx, sy, e * sz); gear.add(cap); }
+    const skid = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, sz * 2, 24), M.carbon); skid.rotation.x = Math.PI / 2; skid.position.set(s * sx, sy, 0); gear.add(skid);
+    for (const e of [-1, 1]) { const cap = new THREE.Mesh(new THREE.SphereGeometry(0.024, 20, 14), M.orange); cap.position.set(s * sx, sy, e * sz); gear.add(cap); }
   }
   cast(root);
   for (const p of props) { p.prop.children.forEach((c) => { if (c.material === p.discMat || c.material === p.tipRingMat) c.castShadow = false; }); }

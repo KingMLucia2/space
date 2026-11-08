@@ -63,7 +63,7 @@ export async function buildCity(engine) {
   const rubbleTex = concrete(8, 512, [235, 232, 226], 0.7, 3, 0.25);
   const rockMat = triplanar(new THREE.MeshStandardMaterial({ map: rubbleTex.map, roughness: 0.96, flatShading: true }), 0.9);
   const moundTex = concrete(17, 512, [112, 106, 96], 0.9, 2, 0.2);
-  const moundMat = triplanar(new THREE.MeshStandardMaterial({ map: moundTex.map, roughness: 1, flatShading: true }), 0.25);
+  const moundMat = triplanar(new THREE.MeshStandardMaterial({ map: moundTex.map, roughness: 1 }), 0.25);
   const plazaTex = concrete(23, 512, [118, 114, 106], 0.9, 6, 0.4);
   const asph = concrete(3, 512, [70, 70, 72], 0.3); asph.map.repeat.set(1, 1);
   const groundTex = concrete(31, 512, [124, 116, 104], 0.35, 0);
@@ -100,7 +100,7 @@ export async function buildCity(engine) {
   const rockColor = () => { const r = rnd(); if (r < 0.08) return [0.38, 0.31, 0.28]; if (r < 0.24) return [0.5, 0.46, 0.4]; const g = 0.36 + rnd() * 0.2; return [g, g * 0.97, g * 0.92]; };
   const moundH = (rr, radius, height) => height * Math.pow(Math.max(0, 1 - (rr / radius) ** 2), 1.3);
   function mound(cx, cz, radius, height, sx = 1, sz = 1) {
-    const seg = 28, rings = 9, g = new THREE.CircleGeometry(1, seg, 0, Math.PI * 2);
+    const seg = 48, rings = 15;
     const geo = new THREE.BufferGeometry(); const pos = [], idx = [];
     for (let r = 0; r <= rings; r++) for (let k = 0; k < seg; k++) {
       const rr = r / rings, a = k / seg * Math.PI * 2;
@@ -110,8 +110,8 @@ export async function buildCity(engine) {
     }
     for (let r = 0; r < rings; r++) for (let k = 0; k < seg; k++) { const a = r * seg + k, b = r * seg + (k + 1) % seg, c = a + seg, d = b + seg; idx.push(a, c, b, b, c, d); }
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
-    const ng = geo.toNonIndexed(); ng.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(ng.attributes.position.count * 2), 2)); ng.computeVertexNormals();
-    put(moundMat, ng);
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3 * 2), 2));
+    put(moundMat, geo);
   }
   // 禁入区：六足机器人行走路线和近景机位附近不放碎块和楼板
   const keepOut = [[-1.8, 3.2, -0.6, 9.5]];
@@ -246,12 +246,13 @@ export async function buildCity(engine) {
     const x = 215 + rnd() * 800, side = rnd() < 0.5 ? -1 : 1, z = side * (10 + rnd() * 30);
     if (Math.abs(x - bx) < 30) continue;
     const y = terrainHeight(x, z), s = 0.7 + rnd() * 0.8;
-    put(trunkMat, new THREE.CylinderGeometry(0.15 * s, 0.25 * s, 3 * s, 6), mtx(x, y + 1.5 * s, z));
-    const ico = new THREE.IcosahedronGeometry(2.2 * s, 1); put(leafMat, ico, mtx(x, y + 4 * s, z, 0, rnd() * 3, 0, 1, 0.85 + rnd() * 0.3, 1));
+    put(trunkMat, new THREE.CylinderGeometry(0.15 * s, 0.25 * s, 3 * s, 12), mtx(x, y + 1.5 * s, z));
+    const ico = new THREE.IcosahedronGeometry(2.2 * s, 2); { const pp = ico.attributes.position; for (let q = 0; q < pp.count; q++) { const k = 1 + 0.12 * Math.sin(pp.getX(q) * 3.1 + pp.getY(q) * 2.3 + x) * Math.cos(pp.getZ(q) * 2.7 + z); pp.setXYZ(q, pp.getX(q) * k, pp.getY(q) * k, pp.getZ(q) * k); } ico.computeVertexNormals(); }
+    put(leafMat, ico, mtx(x, y + 4 * s, z, 0, rnd() * 3, 0, 1, 0.85 + rnd() * 0.3, 1));
   }
 
   const carBody = mergeGeometries([new THREE.BoxGeometry(4.2, 0.75, 1.8).translate(0, 0.65, 0), new THREE.BoxGeometry(2.2, 0.6, 1.6).translate(-0.2, 1.3, 0)]);
-  const carWheel = new THREE.CylinderGeometry(0.34, 0.34, 0.24, 12).rotateX(Math.PI / 2);
+  const carWheel = new THREE.CylinderGeometry(0.34, 0.34, 0.24, 24).rotateX(Math.PI / 2);
   // ---------- 救援车辆（被塌方挡住，警灯闪烁） ----------
   const sirens = [];
   const vehicle = (x, z, ry, kind) => {
@@ -303,8 +304,8 @@ export async function buildCity(engine) {
       im.computeBoundingSphere(); im.castShadow = cast; im.receiveShadow = true; scene.add(im);
     }
   };
-  inst(rockGeo(1, 3), rockMat, rocks.big, true, true, rockGeo(3, 3));
-  inst(rockGeo(1, 4), rockMat, rocks.small, true, false, rockGeo(2, 4));
+  inst(rockGeo(1, 3), rockMat, rocks.big, true, true, rockGeo(4, 3));
+  inst(rockGeo(1, 4), rockMat, rocks.small, true, false, rockGeo(3, 4));
   inst(new THREE.BoxGeometry(1, 1, 1), slabMat, rocks.slab, false, true);
   inst(new THREE.CylinderGeometry(0.016, 0.016, 1, 5).translate(0, 0.5, 0), M.rebar, rocks.rebar, false, false);
   inst(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x5c4339, roughness: 0.95 }), rocks.brick, false, false);

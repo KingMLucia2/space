@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { M } from '../materials.js';
 import { clamp, lerp, smooth } from '../util.js';
 import { panelNormal, labelTexture } from '../textures.js';
+import { rbox, bevelHex, filletLathe } from '../geo.js';
 
 export const HEX = { bodyR: 0.24, mountR: 0.22, L0: 0.06, L1: 0.2, L2: 0.3, standH: 0.24, footR: 0.52, topY: 0.11 };
 const PSI = [45, 90, 135, -45, -90, -135].map((d) => d * Math.PI / 180);
@@ -33,7 +34,7 @@ function foldAngles(i) {
 export function createHexapod() {
   const root = new THREE.Group(); root.name = 'hexapod';
   const body = new THREE.Group(); root.add(body);
-  const hexGeo = (r, h) => { const g = new THREE.CylinderGeometry(r, r, h, 6); g.rotateY(Math.PI / 6); return g; };
+  const hexGeo = (r, h) => bevelHex(r, h, Math.min(0.012, h * 0.2));
   const chassis = new THREE.Mesh(hexGeo(HEX.bodyR, 0.1), M.gunmetal); body.add(chassis);
   const coverMat = M.graphite.clone();
   coverMat.normalMap = panelNormal(512, [[0.5, 0, 0.5, 1], [0, 0.5, 1, 0.5], [0.2, 0.2, 0.8, 0.2], [0.2, 0.8, 0.8, 0.8]], [[0.1, 0.1], [0.9, 0.1], [0.1, 0.9], [0.9, 0.9], [0.5, 0.15], [0.5, 0.85]], 5);
@@ -46,50 +47,50 @@ export function createHexapod() {
     const lab = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.025), new THREE.MeshStandardMaterial({ map: labelTexture('生命探测', { w: 256, h: 64, font: 'bold 44px "Noto Sans SC","WenQuanYi Zen Hei",sans-serif', color: '#2a2d31' }), transparent: true, roughness: 0.5 }));
     lab.rotation.y = s * Math.PI / 2; lab.userData.side = s; lab.userData.isLabel = true; body.userData['lab' + s] = lab;
   }
-  const stripeL = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.005, 0.3), M.orange); stripeL.position.set(0.11, 0.095, 0); body.add(stripeL);
+  const stripeL = new THREE.Mesh(rbox(0.035, 0.005, 0.3, 0.002), M.orange); stripeL.position.set(0.11, 0.095, 0); body.add(stripeL);
   const stripeR = stripeL.clone(); stripeR.position.x = -0.11; body.add(stripeR);
-  const plate = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.018, 0.17), M.darkMetal); plate.position.y = 0.1; body.add(plate);
-  for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.03, 8), M.metal); pin.position.set(Math.sin(a) * 0.13 * 0.75, 0.115, Math.cos(a) * 0.13 * 0.75); body.add(pin); }
-  const battery = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.09), M.carbon); battery.position.set(0, 0.0, -0.25); body.add(battery);
-  const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.007, 0.16, 6), M.carbon); ant.position.set(0.06, 0.15, -0.2); body.add(ant);
+  const plate = new THREE.Mesh(rbox(0.17, 0.018, 0.17, 0.006), M.darkMetal); plate.position.y = 0.1; body.add(plate);
+  for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; const pin = new THREE.Mesh(filletLathe([[0, 0], [0.012, 0], [0.012, 0.022], [0.006, 0.03], [0, 0.03]], 0.003, 20), M.metal); pin.geometry.translate(0, -0.015, 0); pin.position.set(Math.sin(a) * 0.13 * 0.75, 0.115, Math.cos(a) * 0.13 * 0.75); body.add(pin); }
+  const battery = new THREE.Mesh(rbox(0.16, 0.06, 0.09, 0.012), M.carbon); battery.position.set(0, 0.0, -0.25); body.add(battery);
+  const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.007, 0.16, 12), M.carbon); ant.position.set(0.06, 0.15, -0.2); body.add(ant);
   const ledMat = M.ledBlue.clone();
-  for (const s of [-1, 1]) { const strip = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.012, 0.18), ledMat); strip.position.set(s * 0.205, 0.03, 0); body.add(strip); }
+  for (const s of [-1, 1]) { const strip = new THREE.Mesh(rbox(0.006, 0.012, 0.18, 0.0025), ledMat); strip.position.set(s * 0.205, 0.03, 0); body.add(strip); }
   // 头部：生命探测模块
   const head = new THREE.Group(); head.position.set(0, 0.025, 0.25); body.add(head);
-  const headBox = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.085, 0.12), M.white); head.add(headBox);
+  const headBox = new THREE.Mesh(rbox(0.17, 0.085, 0.12, 0.014), M.white); head.add(headBox);
   for (const s of [-1, 1]) { const lab = body.userData['lab' + s]; lab.position.set(s * 0.0855, 0.012, 0); head.add(lab); }
-  const headStripe = new THREE.Mesh(new THREE.BoxGeometry(0.172, 0.018, 0.122), M.orange); headStripe.position.y = -0.03; head.add(headStripe);
-  const lensL = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.024, 0.02, 18), M.lens); lensL.rotation.x = Math.PI / 2; lensL.position.set(-0.04, 0.008, 0.062); head.add(lensL);
+  const headStripe = new THREE.Mesh(rbox(0.173, 0.018, 0.123, 0.006), M.orange); headStripe.position.y = -0.03; head.add(headStripe);
+  const lensL = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.024, 0.02, 36), M.lens); lensL.rotation.x = Math.PI / 2; lensL.position.set(-0.04, 0.008, 0.062); head.add(lensL);
   const lensR = lensL.clone(); lensR.position.x = 0.04; head.add(lensR);
   const eyeMat = M.ledCyan.clone();
-  const eye = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.008, 0.004), eyeMat); eye.position.set(0, -0.016, 0.062); head.add(eye);
+  const eye = new THREE.Mesh(rbox(0.03, 0.008, 0.004, 0.0018), eyeMat); eye.position.set(0, -0.016, 0.062); head.add(eye);
   // 雷达面板：铰接在头顶后缘，0 折叠平放，1 竖起
   const panelPivot = new THREE.Group(); panelPivot.position.set(0, 0.044, -0.055); head.add(panelPivot);
-  const panel = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.012, 0.11), M.offwhite); panel.position.z = 0.055; panelPivot.add(panel);
+  const panel = new THREE.Mesh(rbox(0.16, 0.012, 0.11, 0.005), M.offwhite); panel.position.z = 0.055; panelPivot.add(panel);
   const panelFaceMat = new THREE.MeshStandardMaterial({ color: 0x0b1a2a, emissive: 0x2b8cff, emissiveIntensity: 0.0, roughness: 0.3 });
   const panelFace = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.09), panelFaceMat); panelFace.rotation.x = -Math.PI / 2; panelFace.position.set(0, 0.0065, 0.055); panelPivot.add(panelFace);
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.2, 8), M.metal); mast.position.set(0.07, 0.04, -0.04); head.add(mast);
-  const mastTip = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8), M.ledBlue); mastTip.position.y = 0.1; mast.add(mastTip);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.2, 16), M.metal); mast.position.set(0.07, 0.04, -0.04); head.add(mast);
+  const mastTip = new THREE.Mesh(new THREE.SphereGeometry(0.012, 16, 12), M.ledBlue); mastTip.position.y = 0.1; mast.add(mastTip);
 
   const legs = [];
   for (let i = 0; i < 6; i++) {
     const psi = PSI[i];
     const mount = new THREE.Group(); mount.position.set(Math.sin(psi) * HEX.mountR, 0, Math.cos(psi) * HEX.mountR); mount.rotation.y = psi - Math.PI / 2; body.add(mount);
     const coxa = new THREE.Group(); mount.add(coxa);
-    const servo0 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.05), M.carbon); coxa.add(servo0);
-    const coxaLink = new THREE.Mesh(new THREE.BoxGeometry(HEX.L0, 0.03, 0.04), M.gunmetal); coxaLink.position.x = HEX.L0 / 2; coxa.add(coxaLink);
+    const servo0 = new THREE.Mesh(rbox(0.06, 0.06, 0.05, 0.01), M.carbon); coxa.add(servo0);
+    const coxaLink = new THREE.Mesh(rbox(HEX.L0, 0.03, 0.04, 0.007), M.gunmetal); coxaLink.position.x = HEX.L0 / 2; coxa.add(coxaLink);
     const femur = new THREE.Group(); femur.position.x = HEX.L0; coxa.add(femur);
-    const servo1 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.055, 20), M.darkMetal); servo1.rotation.x = Math.PI / 2; femur.add(servo1);
-    for (const sd of [-1, 1]) { const horn = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.006, 16), M.metal); horn.rotation.x = Math.PI / 2; horn.position.z = sd * 0.03; femur.add(horn); }
-    const femLink = new THREE.Mesh(new THREE.BoxGeometry(HEX.L1, 0.04, 0.035), M.graphite); femLink.position.x = HEX.L1 / 2; femur.add(femLink);
-    const femStripe = new THREE.Mesh(new THREE.BoxGeometry(HEX.L1 * 0.5, 0.042, 0.037), M.orange); femStripe.position.x = HEX.L1 * 0.55; femur.add(femStripe);
+    const servo1 = new THREE.Mesh(filletLathe([[0, -0.0275], [0.03, -0.0275], [0.03, 0.0275], [0, 0.0275]], 0.004, 36), M.darkMetal); servo1.rotation.x = Math.PI / 2; femur.add(servo1);
+    for (const sd of [-1, 1]) { const horn = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.006, 32), M.metal); horn.rotation.x = Math.PI / 2; horn.position.z = sd * 0.03; femur.add(horn); }
+    const femLink = new THREE.Mesh(rbox(HEX.L1, 0.04, 0.035, 0.01), M.graphite); femLink.position.x = HEX.L1 / 2; femur.add(femLink);
+    const femStripe = new THREE.Mesh(rbox(HEX.L1 * 0.5, 0.042, 0.037, 0.01), M.orange); femStripe.position.x = HEX.L1 * 0.55; femur.add(femStripe);
     const tibia = new THREE.Group(); tibia.position.x = HEX.L1; femur.add(tibia);
-    const servo2 = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.05, 20), M.darkMetal); servo2.rotation.x = Math.PI / 2; tibia.add(servo2);
-    for (const sd of [-1, 1]) { const horn = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.006, 16), M.metal); horn.rotation.x = Math.PI / 2; horn.position.z = sd * 0.027; tibia.add(horn); }
-    const kneeLed = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.006, 0.004), ledMat); kneeLed.position.set(0.06, 0.012, 0.0185); tibia.add(kneeLed);
-    const tibGeo = new THREE.CylinderGeometry(0.012, 0.022, HEX.L2, 10); tibGeo.rotateZ(-Math.PI / 2); tibGeo.translate(HEX.L2 / 2, 0, 0);
+    const servo2 = new THREE.Mesh(filletLathe([[0, -0.025], [0.026, -0.025], [0.026, 0.025], [0, 0.025]], 0.004, 36), M.darkMetal); servo2.rotation.x = Math.PI / 2; tibia.add(servo2);
+    for (const sd of [-1, 1]) { const horn = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.006, 32), M.metal); horn.rotation.x = Math.PI / 2; horn.position.z = sd * 0.027; tibia.add(horn); }
+    const kneeLed = new THREE.Mesh(rbox(0.03, 0.006, 0.004, 0.0018), ledMat); kneeLed.position.set(0.06, 0.012, 0.0185); tibia.add(kneeLed);
+    const tibGeo = filletLathe([[0, 0], [0.022, 0], [0.024, HEX.L2 * 0.25], [0.016, HEX.L2 * 0.8], [0.012, HEX.L2], [0, HEX.L2]], 0.006, 32); tibGeo.rotateZ(-Math.PI / 2);
     const tibLink = new THREE.Mesh(tibGeo, M.gunmetal); tibia.add(tibLink);
-    const foot = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 10), M.rubber); foot.position.x = HEX.L2; tibia.add(foot);
+    const foot = new THREE.Mesh(new THREE.SphereGeometry(0.02, 24, 16), M.rubber); foot.position.x = HEX.L2; tibia.add(foot);
     legs.push({ psi, mount, coxa, femur, tibia, fold: foldAngles(i) });
   }
   root.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });

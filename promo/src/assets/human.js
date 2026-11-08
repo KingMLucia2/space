@@ -7,13 +7,13 @@ export function createHuman({ suit = 0xff6a14, helmet = 0xf2f2f0, skin = 0xc69c7
   const mPants = new THREE.MeshStandardMaterial({ color: pants ?? suit, roughness: 0.85 });
   const mHelm = new THREE.MeshPhysicalMaterial({ color: helmet, roughness: 0.35, clearcoat: 0.6 });
   const mSkin = new THREE.MeshStandardMaterial({ color: skin, roughness: 0.7 });
-  const cap = (r, l, m) => new THREE.Mesh(new THREE.CapsuleGeometry(r, l, 6, 12), m);
+  const cap = (r, l, m) => new THREE.Mesh(new THREE.CapsuleGeometry(r, l, 8, 20), m);
   const hips = new THREE.Group(); hips.position.y = 0.95; root.add(hips);
   const torso = new THREE.Group(); hips.add(torso);
   const chest = cap(0.17, 0.4, mSuit); chest.position.y = 0.3; chest.scale.set(1.15, 1, 0.75); torso.add(chest);
   const head = new THREE.Group(); head.position.y = 0.72; torso.add(head);
-  head.add(new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), mSkin));
-  const helm = new THREE.Mesh(new THREE.SphereGeometry(0.125, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), mHelm); helm.position.y = 0.02; head.add(helm);
+  head.add(new THREE.Mesh(new THREE.SphereGeometry(0.11, 32, 20), mSkin));
+  const helm = new THREE.Mesh(new THREE.SphereGeometry(0.125, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.55), mHelm); helm.position.y = 0.02; head.add(helm);
   const limb = (parent, x, y, r, l1, l2, m1, m2) => {
     const a = new THREE.Group(); a.position.set(x, y, 0); parent.add(a);
     const u = cap(r, l1, m1); u.position.y = -l1 / 2 - r; a.add(u);

@@ -42,6 +42,10 @@ const scr = (c) => [VX + VS * (W / 2 + c[0] / -c[2] * F), VY + VS * (H / 2 - c[1
 export function project(p) { const c = toCam(p); if (c[2] > -NEAR) return null; const s = scr(c); return { x: s[0], y: s[1], d: -c[2] }; }
 export const pxPerMeter = (d) => F * VS / d;
 
+// 画面风格：line（线稿）、dots（粒子点阵）、ascii（字符画）
+export const STYLE = { mode: 'dots' };
+export function setStyle(m) { STYLE.mode = m; }
+
 // 逐项“显现”：fn(世界坐标中心) → { p: 描边进度 0~1, g: 额外发光, a: 透明度 }，用于开场线条生长
 let REVEAL = null;
 export function setReveal(fn) { REVEAL = fn; }
@@ -64,7 +68,40 @@ function rv(pts) {
   if (!REVEAL) return null; let x = 0, y = 0, z = 0; for (const p of pts) { x += p[0]; y += p[1]; z += p[2]; } const n = pts.length;
   return REVEAL(x / n, y / n, z / n);
 }
-// style: { stroke, width, alpha, fill, fillAlpha, glow, glowColor, glowWidth, dash, progress, fade(=true), cap, join, depthBias, innerLines... }
+// —— 粒子点阵：沿三维边按世界坐标等距取点（点固定在物体上，镜头移动不闪烁）。
+// 间距按距离分级（2 的幂），相邻两级之间奇数点淡入淡出，保证屏幕上点距稳定在 4~8 像素且不跳变。
+const DOT_PX = 8, DOT_S0 = 0.01;
+let DISP = null; // 粒子位移：fn(wx,wy,wz) → [dx,dy,dz,显示?]，用于粒子汇聚、地震波
+export function setDisp(fn) { DISP = fn; }
+function edgeDots(ca, cb, d, outE, outO, includeEnd, wa, wb) {
+  if (DISP && wa) return edgeDotsDisp(ca, cb, d, outE, outO, includeEnd, wa, wb);
+  const sw = DOT_PX * d / (F * VS); const Lf = Math.log2(Math.max(sw, 1e-6) / DOT_S0); const k = Math.floor(Lf); const sk = DOT_S0 * Math.pow(2, k);
+  const dx = cb[0] - ca[0], dy = cb[1] - ca[1], dz = cb[2] - ca[2]; const len = Math.hypot(dx, dy, dz); if (len < 1e-6) return 0;
+  const n = Math.min(3000, Math.floor(len / sk)); const last = includeEnd ? n : n - 1;
+  for (let j = 0; j <= last; j++) {
+    const u = j * sk / len; const z = ca[2] + dz * u; if (z > -NEAR) continue;
+    const x = VX + VS * (W / 2 + (ca[0] + dx * u) / -z * F), y = VY + VS * (H / 2 - (ca[1] + dy * u) / -z * F);
+    if (x < -4 || x > W + 4 || y < -4 || y > H + 4) continue;
+    if (j % 2 === 0) outE.push(x, y); else outO.push(x, y);
+  }
+  return 1 - (Lf - k); // 奇数点的透明度
+}
+function edgeDotsDisp(ca, cb, d, outE, outO, includeEnd, wa, wb) {
+  const sw = DOT_PX * d / (F * VS); const Lf = Math.log2(Math.max(sw, 1e-6) / DOT_S0); const k = Math.floor(Lf); const sk = DOT_S0 * Math.pow(2, k);
+  const dx = cb[0] - ca[0], dy = cb[1] - ca[1], dz = cb[2] - ca[2]; const len = Math.hypot(dx, dy, dz); if (len < 1e-6) return 0;
+  const n = Math.min(3000, Math.floor(len / sk)); const last = includeEnd ? n : n - 1;
+  for (let j = 0; j <= last; j++) {
+    const u = j * sk / len; const q = DISP(wa[0] + (wb[0] - wa[0]) * u, wa[1] + (wb[1] - wa[1]) * u, wa[2] + (wb[2] - wa[2]) * u); if (!q[3]) continue;
+    const ox = E[0] * q[0] + E[4] * q[1] + E[8] * q[2], oy = E[1] * q[0] + E[5] * q[1] + E[9] * q[2], oz = E[2] * q[0] + E[6] * q[1] + E[10] * q[2];
+    const z = ca[2] + dz * u + oz; if (z > -NEAR) continue;
+    const x = VX + VS * (W / 2 + (ca[0] + dx * u + ox) / -z * F), y = VY + VS * (H / 2 - (ca[1] + dy * u + oy) / -z * F);
+    if (x < -4 || x > W + 4 || y < -4 || y > H + 4) continue;
+    if (j % 2 === 0) outE.push(x, y); else outO.push(x, y);
+  }
+  return 1 - (Lf - k);
+}
+const wantDots = (st) => STYLE.mode === 'dots' && st.fade !== false && st.stroke && !st.dash && st.dots !== false && st.progress === undefined;
+// style: { stroke, width, alpha, fill, fillAlpha, glow, glowColor, glowWidth, dash, progress, fade(=true), cap, join, depthBias, innerLines, dots(=true) }
 export function poly(pts, style = {}, closed = true) {
   const cs = pts.map(toCam);
   const c = clipPoly(cs, closed); if (c.length < 2) return;
@@ -74,6 +111,11 @@ export function poly(pts, style = {}, closed = true) {
   if (x1 < -50 || x0 > W + 50 || y1 < -50 || y0 > H + 50) return;
   const item = { d: d + (style.depthBias || 0), z: d, s, style, closed, r: rv(pts) };
   if (style.innerLines) item.inner = projSegs(style.innerLines);
+  if (wantDots(style) && !(item.r && item.r.p !== undefined && item.r.p < 1)) {
+    const E2 = [], O2 = []; let ao = 1; const m = cs.length, lim = closed ? m : m - 1;
+    for (let i = 0; i < lim; i++) ao = edgeDots(cs[i], cs[(i + 1) % m], d, E2, O2, !closed && i === lim - 1, pts[i], pts[(i + 1) % m]);
+    item.dE = E2; item.dO = O2; item.ao = ao;
+  }
   DL.push(item);
 }
 function projSegs(segs) { // segs: [[a,b],...] → 屏幕坐标扁平数组（逐段裁剪）
@@ -87,7 +129,7 @@ function projSegs(segs) { // segs: [[a,b],...] → 屏幕坐标扁平数组（�
 }
 // 大量线段合成一项（地形等高线、道路标线等）：flat = [x1,y1,z1,x2,y2,z2,...]
 export function segments(flat, style = {}) {
-  const segs = []; let dsum = 0, n = 0;
+  const segs = []; let dsum = 0, n = 0; const dots = wantDots({ stroke: 1, ...style }); const bands = dots ? [[], [], [], [], [], []] : null;
   for (let i = 0; i < flat.length; i += 6) {
     let ca = toCam([flat[i], flat[i + 1], flat[i + 2]]), cb = toCam([flat[i + 3], flat[i + 4], flat[i + 5]]);
     const ia = ca[2] <= -NEAR, ib = cb[2] <= -NEAR; if (!ia && !ib) continue;
@@ -95,8 +137,10 @@ export function segments(flat, style = {}) {
     const sa = scr(ca), sb = scr(cb);
     if ((sa[0] < 0 && sb[0] < 0) || (sa[0] > W && sb[0] > W) || (sa[1] < 0 && sb[1] < 0) || (sa[1] > H && sb[1] > H)) continue;
     const dd = (-ca[2] - cb[2]) / 2; segs.push(sa[0], sa[1], sb[0], sb[1], dd); dsum += dd; n++;
+    if (dots) { const k = style.fade === false ? 1 : fogK(dd); if (k > 0.02) { const E2 = [], O2 = []; const ca0 = toCam([flat[i], flat[i + 1], flat[i + 2]]), cb0 = toCam([flat[i + 3], flat[i + 4], flat[i + 5]]); const ao = edgeDots(ca0, cb0, Math.max(dd, NEAR), E2, O2, false, [flat[i], flat[i + 1], flat[i + 2]], [flat[i + 3], flat[i + 4], flat[i + 5]]);
+      const be = Math.min(5, Math.round(k * 5)), bo = Math.min(5, Math.round(k * ao * 5)); for (const v of E2) bands[be].push(v); if (bo > 0) for (const v of O2) bands[bo].push(v); } }
   }
-  if (n) DL.push({ d: (style.depthBias ?? 0) + dsum / n, z: dsum / n, segs, style });
+  if (n) DL.push({ d: (style.depthBias ?? 0) + dsum / n, z: dsum / n, segs, style, bands: dots ? bands : null });
 }
 export function line(a, b, style = {}) { poly([a, b], style, false); }
 export function polyline(pts, style = {}) { poly(pts, style, false); }
@@ -171,19 +215,24 @@ export function flush() {
       L.fillStyle = st.color || PAL.line; const sz = (st.size || 1.6) * WS; const p = it.pts;
       for (let i = 0; i < p.length; i += 3) { const ak = st.fade === false ? 1 : fogK(p[i + 2]); if (ak <= 0.01) continue; L.globalAlpha = (st.alpha ?? 1) * ak; const z = st.sizeByDepth ? clamp(sz * 40 / p[i + 2], (st.minSize || 0.8) * WS, sz * 2.5) : sz; L.fillRect(p[i] - z / 2, p[i + 1] - z / 2, z, z); }
       L.globalAlpha = 1;
-      if (st.glow) { G.fillStyle = st.glowColor || st.color; const gz = Math.max(2, sz); for (let i = 0; i < p.length; i += 3) { G.globalAlpha = Math.min(1, st.glow * (st.alpha ?? 1) * (st.fade === false ? 1 : fogK(p[i + 2]))); G.fillRect(p[i] / 2 - gz / 2, p[i + 1] / 2 - gz / 2, gz, gz); } G.globalAlpha = 1; }
+      if (st.glow || (STYLE.mode === 'dots' && p.length < 6000)) { G.fillStyle = st.glowColor || st.color; const gz = Math.max(2, sz); const gl0 = st.glow || 0.22; const stp = st.glow ? 3 : 9; for (let i = 0; i < p.length; i += stp) { G.globalAlpha = Math.min(1, gl0 * (st.alpha ?? 1) * (st.fade === false ? 1 : fogK(p[i + 2]))); G.fillRect(p[i] / 2 - gz / 2, p[i + 1] / 2 - gz / 2, gz, gz); } G.globalAlpha = 1; }
       continue;
     }
     if (it.segs) {
-      const p = it.segs; L.strokeStyle = st.stroke || PAL.dim; L.lineWidth = (st.width || 1) * WS; L.lineCap = 'round'; L.setLineDash([]);
-      // 按雾化分 4 档批量描边
+      const p = it.segs; const bands = it.bands; const lineA = bands ? 0.24 : 1; L.strokeStyle = st.stroke || PAL.dim; L.lineWidth = (st.width || 1) * WS; L.lineCap = 'round'; L.setLineDash([]);
+      // 按雾化分 4 档批量描边（粒子模式下只留一层淡淡的底线）
       for (let band = 0; band < 4; band++) {
         L.beginPath(); let any = false;
         for (let i = 0; i < p.length; i += 5) { const kk = st.fade === false ? 1 : fogK(p[i + 4]); const b = Math.min(3, Math.floor(kk * 4)); if (b !== band || kk <= 0.02) continue; L.moveTo(p[i], p[i + 1]); L.lineTo(p[i + 2], p[i + 3]); any = true; }
-        if (any) { L.globalAlpha = (st.alpha ?? 1) * (band + 0.5) / 4; L.stroke(); }
+        if (any) { L.globalAlpha = (st.alpha ?? 1) * (band + 0.5) / 4 * lineA; L.stroke(); }
       }
       L.globalAlpha = 1;
-      if (st.glow) { G.beginPath(); for (let i = 0; i < p.length; i += 5) { if (st.fade !== false && fogK(p[i + 4]) < 0.7) continue; G.moveTo(p[i] / 2, p[i + 1] / 2); G.lineTo(p[i + 2] / 2, p[i + 3] / 2); } G.globalAlpha = st.glow; G.strokeStyle = st.glowColor || st.stroke; G.lineWidth = Math.max(0.5, WS); G.stroke(); G.globalAlpha = 1; }
+      if (bands) {
+        const ds = 2.1 * WS * (st.dotSize || 1); L.fillStyle = st.stroke || PAL.dim; G.fillStyle = st.glowColor || st.stroke || PAL.dim;
+        for (let b = 1; b <= 5; b++) { const q = bands[b]; if (!q.length) continue; L.globalAlpha = Math.min(1, (st.alpha ?? 1) * b / 5 * 1.25); for (let i = 0; i < q.length; i += 2) L.fillRect(q[i] - ds / 2, q[i + 1] - ds / 2, ds, ds);
+          if (b >= 3) { G.globalAlpha = Math.min(1, (st.alpha ?? 1) * b / 5 * (0.35 + (st.glow || 0))); for (let i = 0; i < q.length; i += 4) G.fillRect(q[i] / 2 - 0.8, q[i + 1] / 2 - 0.8, 1.6, 1.6); } }
+        L.globalAlpha = 1; G.globalAlpha = 1;
+      } else if (st.glow) { G.beginPath(); for (let i = 0; i < p.length; i += 5) { if (st.fade !== false && fogK(p[i + 4]) < 0.7) continue; G.moveTo(p[i] / 2, p[i + 1] / 2); G.lineTo(p[i + 2] / 2, p[i + 3] / 2); } G.globalAlpha = st.glow; G.strokeStyle = st.glowColor || st.stroke; G.lineWidth = Math.max(0.5, WS); G.stroke(); G.globalAlpha = 1; }
       continue;
     }
     if (a <= 0.003 && !st.fill) continue;
@@ -205,10 +254,20 @@ export function flush() {
       if (st.glow) { strokePath(G, s, false, 0.5); G.globalAlpha = Math.min(1, st.glow * a); G.strokeStyle = st.glowColor || st.outer || PAL.white; G.lineWidth = (wpx + 3) * 0.5; G.stroke(); G.globalAlpha = 1; }
       continue;
     }
-    if (st.fill && it.closed) { strokePath(L, s, true); L.globalAlpha = (st.fillAlpha ?? 1) * ra; L.fillStyle = st.fill; L.fill(); L.globalAlpha = 1; }
+    if (st.fill && it.closed) { strokePath(L, s, true); L.globalAlpha = (st.fillAlpha ?? 1) * ra * (STYLE.mode === 'dots' && st.fade !== false ? 0.6 : 1) * (R && R.f !== undefined ? R.f : 1); L.fillStyle = st.fill; L.fill(); L.globalAlpha = 1; }
     const prog = R && R.p !== undefined ? Math.min(R.p, st.progress ?? 1) : st.progress;
     if (it.inner && it.inner.length && (prog === undefined || prog >= 1)) { const p = it.inner; L.beginPath(); for (let i = 0; i < p.length; i += 4) { L.moveTo(p[i], p[i + 1]); L.lineTo(p[i + 2], p[i + 3]); } L.globalAlpha = (st.innerAlpha ?? 0.3) * k * ra; L.strokeStyle = st.innerColor || st.stroke || PAL.dim; L.lineWidth = (st.innerWidth || 0.8) * WS; L.setLineDash([]); L.stroke(); L.globalAlpha = 1; }
     if (st.stroke && a > 0.003 && (prog === undefined || prog > 0)) {
+      if (it.dE) { // 粒子点阵：淡底线＋固定在物体上的点＋发光
+        const rf = R && R.f !== undefined ? R.f : 1; strokePath(L, s, it.closed); L.globalAlpha = a * 0.26 * rf; L.strokeStyle = st.stroke; L.lineWidth = WS; L.lineCap = 'round'; L.lineJoin = 'round'; L.setLineDash([]); L.stroke();
+        const ds = Math.max(2.0, (st.width || 1.2) * 1.45) * WS * (st.dotSize || 1); L.fillStyle = st.stroke; const E2 = it.dE, O2 = it.dO;
+        L.globalAlpha = Math.min(1, a * 1.15); for (let i = 0; i < E2.length; i += 2) L.fillRect(E2[i] - ds / 2, E2[i + 1] - ds / 2, ds, ds);
+        if (it.ao > 0.02) { L.globalAlpha = Math.min(1, a * 1.15 * it.ao); for (let i = 0; i < O2.length; i += 2) L.fillRect(O2[i] - ds / 2, O2[i + 1] - ds / 2, ds, ds); }
+        L.globalAlpha = 1;
+        const gl = (st.glow || 0) * 0.8 + 0.3 + (R && R.g ? R.g : 0); G.fillStyle = st.glowColor || st.stroke; G.globalAlpha = Math.min(1, gl * a);
+        for (let i = 0; i < E2.length; i += 2) G.fillRect(E2[i] / 2 - 1, E2[i + 1] / 2 - 1, 2, 2); G.globalAlpha = 1;
+        continue;
+      }
       strokePath(L, s, it.closed);
       L.globalAlpha = a; L.strokeStyle = st.stroke; L.lineWidth = (st.width || 1.2) * WS; L.lineCap = st.cap || 'round'; L.lineJoin = st.join || 'round';
       let len = 0;
@@ -249,10 +308,35 @@ export function composite(t, target = o, opts = {}) {
     o2.globalAlpha = 1;
   }
   if (P.fade > 0) { o2.globalAlpha = P.fade; o2.fillStyle = P.fadeColor; o2.fillRect(0, 0, W, H); o2.globalAlpha = 1; }
+  if (STYLE.mode === 'ascii') asciiPost(o2);
   if (P.hud !== false) o2.drawImage(hudC, 0, 0);
   if (P.flash > 0) { o2.globalAlpha = P.flash; o2.fillStyle = '#fff'; o2.fillRect(0, 0, W, H); o2.globalAlpha = 1; }
   if (P.vignette > 0) { const g = o2.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 1.05); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${P.vignette})`); o2.fillStyle = g; o2.fillRect(0, 0, W, H); }
   if (P.grain > 0) { o2.globalAlpha = P.grain; o2.globalCompositeOperation = 'overlay'; const ox = Math.floor((t * 977) % 256), oy = Math.floor((t * 613) % 256); o2.fillStyle = o2.createPattern(grainC, 'repeat'); o2.save(); o2.translate(-ox, -oy); o2.fillRect(ox, oy, W, H); o2.restore(); o2.globalCompositeOperation = 'source-over'; o2.globalAlpha = 1; }
+}
+// 字符画：把画面分成 12×20 的格子，线条格按走向选 - / | \ ，亮块按亮度选 .:-=+*%#@，颜色取格内最亮像素
+const ASC = '.:-=+*%#@';
+function asciiPost(o2) {
+  const cw = 12, chh = 20, cols = Math.floor(W / cw), rows = Math.floor(H / chh); const img = o2.getImageData(0, 0, W, H).data;
+  o2.fillStyle = '#010509'; o2.fillRect(0, 0, W, H);
+  o2.font = `bold ${chh - 3}px "DejaVu Sans Mono", monospace`; o2.textAlign = 'center'; o2.textBaseline = 'middle';
+  const ns = (chh / 2) * (cw / 2);
+  for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
+    let mx = 0, mr = 0, mg = 0, mb = 0, sum = 0, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, n = 0;
+    for (let y = 0; y < chh; y += 2) for (let x = 0; x < cw; x += 2) {
+      const i = ((cy * chh + y) * W + cx * cw + x) * 4; const r = img[i], g = img[i + 1], b = img[i + 2]; const l = 0.3 * r + 0.59 * g + 0.11 * b; sum += l;
+      if (l > mx) { mx = l; mr = r; mg = g; mb = b; }
+      if (l > 80) { sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y; n++; }
+    }
+    const v = 0.6 * mx + 0.4 * sum / ns; if (v < 30) continue;
+    let chr;
+    if (n >= 3 && n < 0.55 * ns) { const ax = sx / n, ay = sy / n; const a = ((0.5 * Math.atan2(2 * (sxy / n - ax * ay), (sxx / n - ax * ax) - (syy / n - ay * ay))) * 180 / Math.PI + 180) % 180; chr = a < 22.5 || a >= 157.5 ? '-' : a < 67.5 ? '\\' : a < 112.5 ? '|' : '/'; }
+    else chr = ASC[Math.min(ASC.length - 1, Math.floor(v / 255 * ASC.length * 1.15))];
+    const k = Math.min(1.8, 235 / Math.max(50, mx)); o2.fillStyle = `rgb(${Math.min(255, mr * k) | 0},${Math.min(255, mg * k) | 0},${Math.min(255, mb * k) | 0})`;
+    o2.fillText(chr, cx * cw + cw / 2, cy * chh + chh / 2);
+  }
+  T.clearRect(0, 0, W, H); T.filter = 'blur(5px)'; T.drawImage(o2.canvas, 0, 0); T.filter = 'none';
+  o2.globalCompositeOperation = 'lighter'; o2.globalAlpha = 0.7; o2.drawImage(tmpC, 0, 0); o2.globalAlpha = 1; o2.globalCompositeOperation = 'source-over';
 }
 // 离屏渲染一遍（例如大屏上的态势图）：draw() 里自行设相机、视口变换并绘制；结果（含发光）画进 target，透明背景
 export function renderPass(draw, target) {
@@ -268,5 +352,5 @@ export const outCtx = o;
 export function resetFrame() {
   hud.setTransform(1, 0, 0, 1, 0, 0); hud.clearRect(0, 0, W, H); hud.globalAlpha = 1; hud.globalCompositeOperation = 'source-over';
   Object.assign(POST, POST0);
-  FOG.start = 60; FOG.end = 900; DL = []; setView(1, 0, 0, 1); setReveal(null); cam.near = 0.05;
+  FOG.start = 60; FOG.end = 900; DL = []; setView(1, 0, 0, 1); setReveal(null); DISP = null; cam.near = 0.05;
 }

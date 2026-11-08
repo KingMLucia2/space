@@ -30,6 +30,13 @@ export function drawHeli(s) {
     tube(f([sd * 1.25, -1.45, 2.1]), f([sd * 1.22, -1.3, 2.4]), { radius: 0.06, outer: PAL.white, inner: '#0d1a26', fade: st.fade });
     for (const z of [1.0, -1.0]) tube(f([sd * 0.7, -0.9, z]), f([sd * 1.25, -1.45, z + 0.1]), { radius: 0.05, outer: PAL.white, inner: '#0d1a26', fade: st.fade });
   }
+  // 左侧滑门开口（door 0~1）：门后是亮着暖光的机舱
+  if (s.door > 0.01) { const z1 = 0.95, z0 = 0.95 - 1.25 * s.door; const op = [[-1.222, -0.72, z0], [-1.222, -0.72, z1], [-1.222, 0.62, z1], [-1.222, 0.62, z0]].map(f);
+    poly(op, { fill: 'rgba(40,24,8,0.96)', stroke: '#ffd29a', width: 1.6, alpha: 1, glow: 0.8, glowColor: '#ffb347', fade: st.fade, depthBias: -0.06 });
+    const lp2 = f([-1.0, 0.1, (z0 + z1) / 2]); points(new Float32Array(lp2), { color: '#ffd9a8', size: 3, alpha: 0.9, glow: 2.2, glowColor: '#ffb347', fade: false, depthBias: -0.07 }); }
+  // 救援绞车：右侧吊臂，cable 为下放的钢缆长度（米）
+  if (s.cable !== undefined) { const a0 = f([1.1, 1.0, 0.4]), a1 = f([1.75, 1.0, 0.4]); line(a0, a1, { stroke: PAL.white, width: 2.5, alpha: 1, fade: st.fade });
+    polyline([a1, [a1[0], a1[1] - s.cable, a1[2]]], { stroke: '#e8f4ff', width: 1.4, alpha: 0.95, fade: st.fade, dots: false }); }
   // 发动机整流罩
   box((p) => f([p[0], p[1] + 1.25, p[2] - 0.9]), [1.1, 0.6, 2.4], { ...st, width: 1.3 }, {});
   // 尾梁（锥管）＋橙色段＋垂尾＋平尾

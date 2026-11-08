@@ -21,7 +21,7 @@ let C = null;
 export function buildCity() {
   if (C) return C;
   const rnd = mulberry32(2024);
-  const B = [], piles = [], slabs = [], rebar = [], cars = [], trees = [];
+  const B = [], piles = [], slabs = [], rebar = [], cars = [], trees = [], ghosts = [];
   const near = (x, z, r) => CITY.survivors.some(([sx, sz]) => Math.hypot(sx - x, sz - z) < r);
   const keepOut = (x, z, m) => x > -1.8 - m && x < 3.2 + m && z > -0.6 - m && z < 9.5 + m;
   function pile(cx, cz, r, h, n, o = {}) {
@@ -40,8 +40,8 @@ export function buildCity() {
     for (const [x, z, w0, d0] of lots) {
       const w = w0 * (0.75 + rnd() * 0.25), d = d0 * (0.75 + rnd() * 0.25), h = 9 + rnd() * (dist > 0.7 ? 28 : 40);
       const forced = near(x, z, split ? 9 : 16), r = rnd() - (1 - dist) * 0.4;
-      if (forced || r < 0.3) { pile(x, z, Math.max(w, d) * 0.85, Math.min(10, 3 + h * 0.18), 420 + h * 6, { slabs: 1.6, rebar: 2 }); if (rnd() < 0.6) { const wh = 5 + rnd() * 8; B.push({ x: x + (rnd() - 0.5) * w * 0.5, z: z + (rnd() - 0.5) * d * 0.5, w: w * (0.3 + rnd() * 0.3), d: 0.4, h: wh, ry: rnd() * 3, rx: (rnd() - 0.5) * 0.25, rz: (rnd() - 0.5) * 0.3, wall: true }); } }
-      else if (r < 0.5) { const bh = (1 + Math.floor(rnd() * 2)) * 3.2; B.push({ x, z, w, d, h: bh, ry: (rnd() - 0.5) * 0.05 }); for (let k = 0; k < 3 + Math.floor(rnd() * 3); k++) slabs.push({ x: x + (rnd() - 0.5) * 2, y: bh + 0.5 + k * 0.9, z: z + (rnd() - 0.5) * 2, w: w * (0.75 + rnd() * 0.3), d: d * (0.75 + rnd() * 0.3), ry: (rnd() - 0.5) * 0.3, rx: (rnd() - 0.5) * 0.5, rz: (rnd() - 0.5) * 0.5 }); pile(x, z, Math.max(w, d) * 0.9, 3 + rnd() * 2, 220); }
+      if (forced || r < 0.3) { ghosts.push({ x, z, w, d, h, low: 0 }); pile(x, z, Math.max(w, d) * 0.85, Math.min(10, 3 + h * 0.18), 420 + h * 6, { slabs: 1.6, rebar: 2 }); if (rnd() < 0.6) { const wh = 5 + rnd() * 8; B.push({ x: x + (rnd() - 0.5) * w * 0.5, z: z + (rnd() - 0.5) * d * 0.5, w: w * (0.3 + rnd() * 0.3), d: 0.4, h: wh, ry: rnd() * 3, rx: (rnd() - 0.5) * 0.25, rz: (rnd() - 0.5) * 0.3, wall: true }); } }
+      else if (r < 0.5) { const bh = (1 + Math.floor(rnd() * 2)) * 3.2; ghosts.push({ x, z, w, d, h, low: bh }); B.push({ x, z, w, d, h: bh, ry: (rnd() - 0.5) * 0.05 }); for (let k = 0; k < 3 + Math.floor(rnd() * 3); k++) slabs.push({ x: x + (rnd() - 0.5) * 2, y: bh + 0.5 + k * 0.9, z: z + (rnd() - 0.5) * 2, w: w * (0.75 + rnd() * 0.3), d: d * (0.75 + rnd() * 0.3), ry: (rnd() - 0.5) * 0.3, rx: (rnd() - 0.5) * 0.5, rz: (rnd() - 0.5) * 0.5 }); pile(x, z, Math.max(w, d) * 0.9, 3 + rnd() * 2, 220); }
       else { const lean = rnd() < 0.34 ? (rnd() < 0.5 ? -1 : 1) * (0.06 + rnd() * 0.12) : 0; const ax = rnd() < 0.5; const hh = h * (r < 0.6 ? 0.8 : 1);
         const b = { x, z, w, d, h: hh, ry: (rnd() - 0.5) * 0.06, rx: ax ? lean : 0, rz: ax ? 0 : lean, windows: true, broken: [] };
         if (r < 0.88) for (let k = 0; k < 3; k++) { const bw = w * (0.3 + rnd() * 0.4), bd = d * (0.3 + rnd() * 0.4), bh = 2 + rnd() * 6; b.broken.push({ ox: (rnd() - 0.5) * (w - bw), oz: (rnd() - 0.5) * (d - bd), w: bw, d: bd, h: bh, rx: (rnd() - 0.5) * 0.1, rz: (rnd() - 0.5) * 0.1 }); }
@@ -107,7 +107,12 @@ export function buildCity() {
   const mesh = []; const MS = 10, SS = 5;
   for (let x = 330; x <= 640; x += MS) for (let z = -430; z < -80; z += SS) mesh.push(x, terrainHeight(x, z) + 0.05, z, x, terrainHeight(x, z + SS) + 0.05, z + SS);
   for (let z = -430; z <= -80; z += MS) for (let x = 330; x < 640; x += SS) mesh.push(x, terrainHeight(x, z) + 0.05, z, x + SS, terrainHeight(x + SS, z) + 0.05, z);
-  C = { B, piles, slabs, rebar, cars, trees, cloud, cracks, fires, mesh: new Float32Array(mesh), contour: new Float32Array(contour), road: new Float32Array(road), grid: new Float32Array(grid), rebarF: new Float32Array(rebar.flat()) };
+  // 地震前的完整楼体（倒塌动画用）与崩落碎块的取样点
+  const R2 = mulberry32(55);
+  for (const g of ghosts) { const n = Math.round(Math.min(260, 40 + g.w * g.d * g.h / 220)); const deb = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) { const e = R2(); deb[i * 4] = (R2() - 0.5) * g.w; deb[i * 4 + 1] = g.low + R2() * (g.h - g.low); deb[i * 4 + 2] = (R2() - 0.5) * g.d; deb[i * 4 + 3] = e; if (e < 0.5) { if (R2() < 0.5) deb[i * 4] = Math.sign(deb[i * 4]) * g.w / 2; else deb[i * 4 + 2] = Math.sign(deb[i * 4 + 2]) * g.d / 2; } }
+    g.deb = deb; }
+  C = { B, piles, slabs, rebar, cars, trees, cloud, cracks, fires, ghosts, mesh: new Float32Array(mesh), contour: new Float32Array(contour), road: new Float32Array(road), grid: new Float32Array(grid), rebarF: new Float32Array(rebar.flat()) };
   return C;
 }
 
@@ -125,41 +130,65 @@ export function groundGrid(center, size = 30, step = 1, alpha = 0.6) {
   segments(new Float32Array(a), { stroke: '#2b6d99', alpha, width: 1, depthBias: 7e4 });
 }
 // opts: lite（省略细节）、ground（地面线条透明度）、pts（点云透明度）、xray {x,z,r,k}（探测时瓦砾变透明）
+// opts.quake(x, z) → { c: 倒塌进度 0~1, tau: 距该处开始倒塌的秒数 }：开场地震用，没有时按已倒塌画
 export function drawCity(t, opts = {}) {
   const c = buildCity(); const cp = cam.position; const lite = opts.lite; const ga = opts.ground ?? 1, pa = opts.pts ?? 1; const xr = opts.xray;
+  const Q = opts.quake; const qc = Q ? (x, z) => Q(x, z).c : () => 1; const after = (x, z) => (Q ? smooth((qc(x, z) - 0.3) / 0.6) : 1);
+  if (Q) drawQuake(c, Q, t);
   if (ga > 0.01) {
     segments(c.contour, { stroke: '#2f86b8', alpha: 0.7 * ga, width: 1, depthBias: 1e5 });
     segments(c.grid, { stroke: PAL.faint, alpha: 0.32 * ga, width: 1, depthBias: 9e4 });
     segments(c.road, { stroke: '#46a6dc', alpha: 0.85 * ga, width: 1.4, depthBias: 8e4, glow: 0.18 * ga });
     segments(c.mesh, { stroke: '#2a7fb0', alpha: 0.42 * ga, width: 1, depthBias: 9.6e4 });
-    for (const pts of c.cracks) polyline(pts, { stroke: '#ff8a3a', width: 1.6, alpha: 0.8 * ga, glow: 0.8 * ga, glowColor: '#ff6a1a', depthBias: 7.5e4 });
+    for (const pts of c.cracks) { const k = Q ? smooth(qc(pts[0][0], pts[0][2]) * 1.4) : 1; if (k > 0.01) polyline(pts, { stroke: '#ff8a3a', width: 1.6, alpha: 0.8 * ga, glow: 0.8 * ga, glowColor: '#ff6a1a', depthBias: 7.5e4, progress: k < 1 ? k : undefined }); }
   }
   for (const b of c.B) {
     const dist = Math.hypot(b.x - cp.x, b.z - cp.z, (b.h / 2) - cp.y);
-    const f = xform([b.x, 0, b.z], b.ry || 0, b.rx || 0, b.rz || 0);
+    const lk = Q && (b.rx || b.rz) ? smooth(qc(b.x, b.z)) : 1; const f = xform([b.x, 0, b.z], b.ry || 0, (b.rx || 0) * lk, (b.rz || 0) * lk);
+    if (Q && b.wall && qc(b.x, b.z) < 0.5) continue;
     box(f, [b.w, b.h, b.d], dist < 260 && !lite ? ST.bld : ST.bldFar, { base: true, skipBottom: true, windows: b.windows && dist < 260 && !lite ? { floor: 3.2, bay: 4 } : null });
-    if (b.broken) for (const k of b.broken) box(xform([b.x + k.ox, b.h, b.z + k.oz], b.ry || 0, (b.rx || 0) + (k.rx || 0), (b.rz || 0) + (k.rz || 0)), [k.w, k.h, k.d], ST.bldFar, { base: true, skipBottom: true });
+    if (b.broken) for (const k of b.broken) box(xform([b.x + k.ox, b.h, b.z + k.oz], b.ry || 0, (b.rx || 0) * lk + (k.rx || 0), (b.rz || 0) * lk + (k.rz || 0)), [k.w, k.h, k.d], ST.bldFar, { base: true, skipBottom: true });
   }
-  for (const s of c.slabs) { const dist = Math.hypot(s.x - cp.x, s.z - cp.z, s.y - cp.y); if (dist > (lite ? 160 : 420)) continue;
+  for (const s of c.slabs) { const dist = Math.hypot(s.x - cp.x, s.z - cp.z, s.y - cp.y); if (dist > (lite ? 160 : 420)) continue; if (Q && after(s.x, s.z) < 0.5) continue;
     let st = ST.slab; if (xr) { const q = xr.k * (1 - smooth((Math.hypot(s.x - xr.x, s.z - xr.z) - xr.r * 0.6) / (xr.r * 0.4))); if (q > 0.01) st = { ...ST.slab, fillAlpha: 1 - 0.85 * q, alpha: 0.75 * (1 - 0.5 * q) }; }
     box(xform([s.x, s.y, s.z], s.ry, s.rx, s.rz), [s.w, 0.25, s.d], st); }
   if (pa > 0.01) {
     for (const p of c.cloud) { const dist = Math.hypot(p.cx - cp.x, p.cz - cp.z, cp.y); const step = dist > 250 ? 3 : dist > 120 ? 2 : 1;
       let arr = p.arr; if (step > 1) { const n = Math.floor(arr.length / 3 / step); const a2 = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a2[i * 3] = arr[i * step * 3]; a2[i * 3 + 1] = arr[i * step * 3 + 1]; a2[i * 3 + 2] = arr[i * step * 3 + 2]; } arr = a2; }
       const near = xr ? xr.k * (1 - smooth((Math.hypot(p.cx - xr.x, p.cz - xr.z) - p.r - xr.r * 0.5) / xr.r)) : 0;
-      points(arr, { color: '#86c4e6', alpha: 0.7 * pa * (1 - 0.6 * near), size: 1.7, sizeByDepth: true, minSize: 1.1 }); }
-    segments(c.rebarF, { stroke: '#d9925a', alpha: 0.65 * pa, width: 1 });
+      const ak = after(p.cx, p.cz); const dens = dist > 150 && arr.length > 6000 ? 0.55 : 1; if (ak > 0.01) points(arr, { color: '#86c4e6', alpha: 0.7 * pa * (1 - 0.6 * near) * ak * dens, size: 1.7, sizeByDepth: true, minSize: 1.1 }); }
+    if (!Q || t > 6.5) segments(c.rebarF, { stroke: '#d9925a', alpha: 0.65 * pa * (Q ? smooth((t - 6.5) / 0.5) : 1), width: 1 });
   }
   if (!lite) for (const k of c.cars) { const dist = Math.hypot(k.x - cp.x, k.z - cp.z, cp.y); if (dist > 300) continue; const f = xform([k.x, 0, k.z], k.ry); box(f, [4.2, 0.75 * k.crush, 1.8], ST.car, { base: true, skipBottom: true }); box(xform([k.x, 0.75 * k.crush, k.z], k.ry), [2.2, 0.6 * k.crush, 1.6], ST.car, { base: true, skipBottom: true }); }
   for (const [x, y, z, s] of c.trees) { const dist = Math.hypot(x - cp.x, z - cp.z, y - cp.y); if (dist > 500) continue; polyline([[x, y, z], [x, y + 3 * s, z]], { stroke: '#3b8fbf', alpha: 0.6, width: 1 }); poly(ring([x, y + 4 * s, z], 2 * s, [0, 1, 0], 14), { fill: 'rgba(4,14,22,0.9)', stroke: '#3b8fbf', alpha: 0.7, width: 1 }); }
-  if (pa > 0.01) drawSmoke(t, opts, pa);
+  if (pa > 0.01) drawSmoke(t, opts, pa, Q ? after : null);
+}
+
+// 地震：完整楼体下沉坍塌、碎块下落、底部扬尘
+function drawQuake(c, Q, t) {
+  const cp = cam.position;
+  for (const g of c.ghosts) {
+    const { c: k, tau } = Q(g.x, g.z); if (k >= 1 && tau > 3.2) continue;
+    if (k < 0.97) { const hv = lerp(g.h, g.low, Math.pow(k, 1.6)); if (hv > 0.3) { const dist = Math.hypot(g.x - cp.x, g.z - cp.z, g.h / 2 - cp.y); box(xform([g.x, 0, g.z], 0, 0.04 * k * Math.sin(g.x), 0.05 * k * Math.cos(g.z)), [g.w, hv, g.d], { ...(dist < 260 ? ST.bld : ST.bldFar), alpha: 0.95 * (1 - smooth((k - 0.75) / 0.22)) }, { base: true, skipBottom: true, windows: dist < 200 ? { floor: 3.2, bay: 4 } : null }); } }
+    if (tau > 0 && tau < 3.2) { // 碎块：上部先落，落地后淡出
+      const D = g.deb, n = D.length / 4, arr = []; const sp = 1 + 0.35 * tau;
+      for (let i = 0; i < n; i++) { const ly = D[i * 4 + 1], e = D[i * 4 + 3]; const t0 = (1 - (ly - g.low) / Math.max(1, g.h - g.low)) * 0.55 * k; const tt = Math.max(0, tau - t0);
+        const yl = 0.3 + e * 2.5; const y = Math.max(yl, ly - 0.5 * 16 * tt * tt); if (tt > 0 && y <= yl && tt > 1.6 + e) continue;
+        arr.push(g.x + D[i * 4] * sp, y, g.z + D[i * 4 + 2] * sp); }
+      if (arr.length) points(new Float32Array(arr), { color: '#a9d6f0', alpha: 0.8, size: 2.2, sizeByDepth: true, minSize: 1.3, glow: 0.18 });
+      const dn = 90, dust = new Float32Array(dn * 3); const rr = Math.max(g.w, g.d) * 0.55; // 扬尘环
+      for (let i = 0; i < dn; i++) { const a = i / dn * 6.283 + g.x; const q = rr * (1 + 1.6 * tau) * (0.85 + 0.3 * Math.sin(i * 7.1)); dust[i * 3] = g.x + Math.cos(a) * q; dust[i * 3 + 1] = 0.4 + tau * (1.5 + Math.sin(i * 3.3)); dust[i * 3 + 2] = g.z + Math.sin(a) * q; }
+      points(dust, { color: '#c3d3df', alpha: 0.45 * (1 - tau / 3.2), size: 2.6, sizeByDepth: true, minSize: 1.4 });
+    }
+  }
 }
 
 // 烟柱：上升并被风吹斜的粒子＋底部火光；瓦砾上零星闪烁的火点
 const SMOKE = [[-84, -60, 1.1], [64, 112, 0.9], [136, -100, 1.3], [-150, 90, 0.8], [30, -130, 0.9], [-120, -150, 0.7], [160, 40, 0.8]];
-function drawSmoke(t, opts, pa = 1) {
+function drawSmoke(t, opts, pa = 1, aft = null) {
   const R = mulberry32(9);
   for (const [sx, sz, s] of SMOKE) {
+    const qa = aft ? aft(sx, sz) : 1; if (qa < 0.02) { R(); continue; } const pa0 = pa; pa = pa0 * qa;
     const n = 900, arr = new Float32Array(n * 3);
     for (let k = 0; k < n; k++) { const life = 16 + R() * 10, ph = R(); const age = ((t + ph * life) % life); const u = age / life;
       const sw = 2.5 + u * 26 * s; const ang = R() * 6.283, rr = Math.sqrt(R()) * sw;
@@ -170,8 +199,9 @@ function drawSmoke(t, opts, pa = 1) {
     const fl = 0.6 + 0.4 * Math.sin(t * 9 + sx); const fa = [];
     for (let k = 0; k < 24; k++) { const a = R() * 6.283, r = R() * 4 * s; fa.push(sx + Math.cos(a) * r, 0.5 + R() * 2.5 * (0.6 + 0.4 * Math.sin(t * 7 + k)), sz + Math.sin(a) * r); }
     points(new Float32Array(fa), { color: PAL.amber, alpha: 0.85 * fl * pa, size: 3, glow: 1.4 * fl * pa, glowColor: PAL.orange, sizeByDepth: true, minSize: 1.5 });
+    pa = pa0;
   }
-  for (const [x, y, z, s, ph] of buildCity().fires) { const fl = 0.55 + 0.45 * Math.sin(t * (6 + ph * 5) + ph * 20);
+  for (const [x, y, z, s, ph] of buildCity().fires) { const fl = (0.55 + 0.45 * Math.sin(t * (6 + ph * 5) + ph * 20)) * (aft ? aft(x, z) : 1); if (fl < 0.02) continue;
     points(new Float32Array([x, y + 0.3, z, x + 0.8 * s, y + 0.1, z + 0.5 * s, x - 0.6 * s, y + 0.2, z - 0.4 * s]), { color: '#ffb347', alpha: 0.9 * fl * pa, size: 2.6, glow: 1.6 * fl * pa, glowColor: '#ff6a1a', sizeByDepth: true, minSize: 1.4 }); }
 }
 

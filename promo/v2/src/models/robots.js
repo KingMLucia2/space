@@ -22,43 +22,45 @@ export function rotorSpin(t, { t0 = -100, wMax = 160, spinUp = 2.0, t1 = Infinit
 // s: { pos, heading, pitch, roll, rot:{angle,speed}, latch(0锁~1开), ring, strobe, t }
 export function drawDrone(s) {
   const f = xform(s.pos, s.heading || 0, s.pitch || 0, s.roll || 0);
-  const t = s.t || 0, sp = s.rot ? s.rot.speed : 0, ang = s.rot ? s.rot.angle : 0;
+  const t = s.t || 0, sp = s.rot ? s.rot.speed : 0, ang = s.rot ? s.rot.angle : 0; const e = s.explode || 0; // e：爆炸图展开程度
   // 机身
   cylinder(f, 0.31, 0.34, 0.16, { ...W1, depthBias: 0.02 }, 32, { stroke: PAL.white, width: 1.2, alpha: 0.7, fade: false });
   poly(ring([0, -0.03, 0], 0.346, [0, 1, 0], 40).map(f), { ...OR, width: 2.6, depthBias: 0.015 });
-  dome((p) => f([p[0], p[1] + 0.08, p[2]]), 0.3, 0.36, { ...W1, depthBias: 0.01 }, 20);
-  points(new Float32Array(f([0, 0.19, 0.08])), { color: PAL.blue, size: 3, glow: 1.5, fade: false });
-  if (s.strobe) points(new Float32Array(f([0, 0.2, -0.1])), { color: '#fff', size: 4, alpha: (t % 1.2) < 0.08 ? 1 : 0.15, glow: (t % 1.2) < 0.08 ? 3 : 0, fade: false });
+  dome((p) => f([p[0], p[1] + 0.08 + 0.16 * e, p[2]]), 0.3, 0.36, { ...W1, depthBias: 0.01 }, 20);
+  points(new Float32Array(f([0, 0.19 + 0.16 * e, 0.08])), { color: PAL.blue, size: 3, glow: 1.5, fade: false });
+  if (s.strobe) points(new Float32Array(f([0, 0.2 + 0.16 * e, -0.1])), { color: '#fff', size: 4, alpha: (t % 1.2) < 0.08 ? 1 : 0.15, glow: (t % 1.2) < 0.08 ? 3 : 0, fade: false });
   // 机腹：灯环与锁扣
-  poly(ring([0, -0.143, 0], 0.19, [0, 1, 0], 32).map(f), { stroke: PAL.blue, width: 2, alpha: 1, glow: s.ring ?? 1.2, fade: false, depthBias: 0.02 });
+  poly(ring([0, -0.143 - 0.12 * e, 0], 0.19, [0, 1, 0], 32).map(f), { stroke: PAL.blue, width: 2, alpha: 1, glow: s.ring ?? 1.2, fade: false, depthBias: 0.02 });
   const latch = s.latch || 0;
-  for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; const p0 = [Math.sin(a) * 0.13, -0.14, Math.cos(a) * 0.13]; const p1 = [Math.sin(a) * (0.13 + 0.05 * latch), -0.22 + 0.03 * latch, Math.cos(a) * (0.13 + 0.05 * latch)]; tube(f(p0), f(p1), { radius: 0.012, outer: PAL.white, inner: '#7a8a99', fade: false }); }
+  for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; const p0 = [Math.sin(a) * 0.13, -0.14 - 0.12 * e, Math.cos(a) * 0.13]; const p1 = [Math.sin(a) * (0.13 + 0.05 * latch), -0.22 + 0.03 * latch - 0.12 * e, Math.cos(a) * (0.13 + 0.05 * latch)]; tube(f(p0), f(p1), { radius: 0.012, outer: PAL.white, inner: '#7a8a99', fade: false }); }
   // 机臂、电机、旋翼
-  for (let i = 0; i < 6; i++) {
-    const a = i * Math.PI / 3 + Math.PI / 6, dx = Math.sin(a), dz = Math.cos(a);
-    const m = [dx * DRONE.armReach, 0, dz * DRONE.armReach];
-    tube(f([dx * 0.32, 0, dz * 0.32]), f(m), { radius: 0.03, outer: PAL.white, inner: '#0d1a26', fade: false });
-    tube(f([dx * 0.9, 0, dz * 0.9]), f([dx * 0.98, 0, dz * 0.98]), { radius: 0.036, outer: PAL.orange, inner: PAL.orange, edge: 0.5, fade: false });
-    cylinder((p) => f([m[0] + p[0], p[1] + 0.07, m[2] + p[2]]), 0.06, 0.07, 0.1, { ...W1, width: 1.3 }, 16);
-    points(new Float32Array(f([m[0], -0.04, m[2]])), { color: (i === 0 || i === 5) ? '#fff' : PAL.blue, size: 3, glow: 1.4, fade: false });
-    const hubP = [m[0], 0.15, m[2]];
+  const NA = s.arms || 6, REACH = { 4: 1.02, 6: DRONE.armReach, 8: 1.24 }[NA], PR = { 4: 0.47, 6: DRONE.propR, 8: 0.31 }[NA]; // 四轴/六轴/八轴
+  for (let i = 0; i < NA; i++) {
+    const a = i * 2 * Math.PI / NA + Math.PI / NA, dx = Math.sin(a), dz = Math.cos(a); const ao = 0.3 * e, mu = 0.22 * e;
+    const m = [dx * (REACH + ao), 0, dz * (REACH + ao)];
+    tube(f([dx * (0.32 + ao), 0, dz * (0.32 + ao)]), f(m), { radius: 0.03, outer: PAL.white, inner: '#0d1a26', fade: false });
+    tube(f([dx * (0.9 + ao), 0, dz * (0.9 + ao)]), f([dx * (0.98 + ao), 0, dz * (0.98 + ao)]), { radius: 0.036, outer: PAL.orange, inner: PAL.orange, edge: 0.5, fade: false });
+    cylinder((p) => f([m[0] + p[0], p[1] + 0.07 + mu, m[2] + p[2]]), 0.06, 0.07, 0.1, { ...W1, width: 1.3 }, 16);
+    points(new Float32Array(f([m[0], -0.04, m[2]])), { color: (i === 0 || i === NA - 1) ? '#fff' : PAL.blue, size: 3, glow: 1.4, fade: false });
+    const hubP = [m[0], 0.15 + mu * 1.6, m[2]];
     const blur = smooth((sp - 0.35) / 0.4);
     if (blur > 0.02) {
-      poly(ring(hubP, DRONE.propR, [0, 1, 0], 40).map(f), { fill: 'rgba(160,220,255,0.05)', stroke: PAL.white, width: 1, alpha: 0.35 * blur, fade: false });
-      poly(ring(hubP, DRONE.propR - 0.02, [0, 1, 0], 40).map(f), { stroke: PAL.orange, width: 1.6, alpha: 0.6 * blur, fade: false });
-      const ba = ang * (i % 2 ? 1 : -1) + i; for (let q = 0; q < 2; q++) { const arc = []; for (let k = 0; k <= 8; k++) { const th = ba + q * Math.PI + k * 0.08; arc.push(f([hubP[0] + Math.cos(th) * DRONE.propR * 0.92, 0.15, hubP[2] + Math.sin(th) * DRONE.propR * 0.92])); } polyline(arc, { stroke: PAL.white, width: 1.5, alpha: 0.5 * blur, fade: false }); }
+      poly(ring(hubP, PR, [0, 1, 0], 40).map(f), { fill: 'rgba(160,220,255,0.05)', stroke: PAL.white, width: 1, alpha: 0.35 * blur, fade: false });
+      poly(ring(hubP, PR - 0.02, [0, 1, 0], 40).map(f), { stroke: PAL.orange, width: 1.6, alpha: 0.6 * blur, fade: false });
+      const ba = ang * (i % 2 ? 1 : -1) + i; for (let q = 0; q < 2; q++) { const arc = []; for (let k = 0; k <= 8; k++) { const th = ba + q * Math.PI + k * 0.08; arc.push(f([hubP[0] + Math.cos(th) * PR * 0.92, hubP[1], hubP[2] + Math.sin(th) * PR * 0.92])); } polyline(arc, { stroke: PAL.white, width: 1.5, alpha: 0.5 * blur, fade: false }); }
     }
-    if (blur < 0.98) { const ba = ang * (i % 2 ? 1 : -1) + i * 0.7; const e1 = [hubP[0] + Math.cos(ba) * DRONE.propR, 0.15, hubP[2] + Math.sin(ba) * DRONE.propR], e2 = [hubP[0] - Math.cos(ba) * DRONE.propR, 0.15, hubP[2] - Math.sin(ba) * DRONE.propR];
+    if (blur < 0.98) { const ba = ang * (i % 2 ? 1 : -1) + i * 0.7; const e1 = [hubP[0] + Math.cos(ba) * PR, hubP[1], hubP[2] + Math.sin(ba) * PR], e2 = [hubP[0] - Math.cos(ba) * PR, hubP[1], hubP[2] - Math.sin(ba) * PR];
       tube(f(e1), f(e2), { radius: 0.012, outer: PAL.white, inner: '#1a2633', alpha: 1 - blur, fade: false }); }
   }
   // 起落架
+  const gy = -0.32 * e, gr = 1 - (s.gear ?? 1); const sy = lerp(-0.62, -0.16, gr), sx = lerp(0.64, 0.86, gr); // gear 0 收起起落架
   for (const sd of [-1, 1]) {
-    for (const zz of [0.17, -0.17]) tube(f([sd * 0.2, -0.12, zz]), f([sd * 0.64, -0.62, zz * 1.4]), { radius: 0.016, outer: PAL.white, inner: '#0d1a26', fade: false });
-    tube(f([sd * 0.64, -0.62, -0.46]), f([sd * 0.64, -0.62, 0.46]), { radius: 0.02, outer: PAL.white, inner: '#0d1a26', fade: false });
-    points(new Float32Array([...f([sd * 0.64, -0.62, 0.46]), ...f([sd * 0.64, -0.62, -0.46])]), { color: PAL.orange, size: 4, fade: false });
+    for (const zz of [0.17, -0.17]) tube(f([sd * 0.2, -0.12 + gy, zz]), f([sd * sx, sy + gy, zz * 1.4]), { radius: 0.016, outer: PAL.white, inner: '#0d1a26', fade: false });
+    tube(f([sd * sx, sy + gy, -0.46]), f([sd * sx, sy + gy, 0.46]), { radius: 0.02, outer: PAL.white, inner: '#0d1a26', fade: false });
+    points(new Float32Array([...f([sd * sx, sy + gy, 0.46]), ...f([sd * sx, sy + gy, -0.46])]), { color: PAL.orange, size: 4, fade: false });
   }
   // 云台
-  dome((p) => f([p[0], p[1] - 0.18, p[2] + 0.27]), 0.06, 1, { ...W1, width: 1.2 }, 12, false);
+  dome((p) => f([p[0], p[1] - 0.18 - 0.1 * e, p[2] + 0.27 + 0.16 * e]), 0.06, 1, { ...W1, width: 1.2 }, 12, false);
   return f;
 }
 
@@ -90,16 +92,16 @@ export function standFeet(pose) { return [0, 1, 2, 3, 4, 5].map((i) => footOnGro
 // s: { f (外部变换，可选，挂在无人机下时用) 或 pose:{x,y,z,heading,pitch,roll}, feet(世界坐标), fold(0~1), scanner(0~1), glow }
 export function drawHexapod(s) {
   const f = s.f || xform([s.pose.x, s.pose.y, s.pose.z], s.pose.heading || 0, s.pose.pitch || 0, s.pose.roll || 0);
-  const inv = f.m.clone().invert();
+  const inv = f.m.clone().invert(); const e = s.explode || 0;
   // 机身：倒角六棱柱剪影＋顶面轮廓＋橙色条
   const hex = (y, r) => { const a = []; for (let k = 0; k < 6; k++) { const th = k * Math.PI / 3; a.push([Math.cos(th) * r, y, Math.sin(th) * r]); } return a; };
   solid([...hex(-0.05, HEX.bodyR), ...hex(0.09, HEX.bodyR * 0.93)].map(f), { ...W1, depthBias: 0.01 });
   poly(hex(0.093, HEX.bodyR * 0.93).map(f), { stroke: PAL.white, width: 1.2, alpha: 0.7, fade: false, depthBias: 0.005 });
   for (const sd of [-1, 1]) polyline([[sd * 0.11, 0.095, -0.15], [sd * 0.11, 0.095, 0.15]].map(f), { ...OR, width: 2.4, depthBias: 0.004 });
-  box((p) => f([p[0], p[1] + 0.1, p[2]]), [0.17, 0.018, 0.17], { fill: '#0b1824', stroke: PAL.white, width: 1, alpha: 0.8, fade: false });
+  box((p) => f([p[0], p[1] + 0.1 + 0.1 * e, p[2]]), [0.17, 0.018, 0.17], { fill: '#0b1824', stroke: PAL.white, width: 1, alpha: 0.8, fade: false });
   for (const sd of [-1, 1]) points(new Float32Array(f([sd * 0.205, 0.03, 0])), { color: PAL.blue, size: 3, glow: 1.2, fade: false });
   // 头部与雷达面板
-  const hf = (p) => f([p[0], p[1] + 0.025, p[2] + 0.25]);
+  const hf = (p) => f([p[0], p[1] + 0.025 + 0.04 * e, p[2] + 0.25 + 0.16 * e]);
   box(hf, [0.17, 0.085, 0.12], { fill: PAL.fill, stroke: PAL.white, width: 1.5, fade: false });
   polyline([[-0.085, -0.03, 0.061], [0.085, -0.03, 0.061]].map(hf), { ...OR, width: 2 });
   for (const sd of [-1, 1]) poly(ring([sd * 0.04, 0.008, 0.062], 0.022, [0, 0, 1], 16).map(hf), { fill: '#02070c', stroke: PAL.white, width: 1.2, fade: false, depthBias: -0.01 });
@@ -124,14 +126,22 @@ export function drawHexapod(s) {
     const p1 = [mp[0] + dir[0] * HEX.L0, 0, mp[2] + dir[2] * HEX.L0];
     const knee = [p1[0] + dir[0] * HEX.L1 * Math.cos(al), HEX.L1 * Math.sin(al), p1[2] + dir[2] * HEX.L1 * Math.cos(al)];
     const foot = [knee[0] + dir[0] * HEX.L2 * Math.cos(al + be), knee[1] + HEX.L2 * Math.sin(al + be), knee[2] + dir[2] * HEX.L2 * Math.cos(al + be)];
-    const LG = { outer: PAL.white, inner: '#132636', edge: 1.4, fade: false };
-    tube(f(mp), f(p1), { ...LG, radius: 0.012, radius2: 0.011 });
-    tube(f(p1), f(knee), { ...LG, radius: 0.0095, radius2: 0.0085 });
-    const mid0 = [lerp(p1[0], knee[0], 0.28), lerp(p1[1], knee[1], 0.28), lerp(p1[2], knee[2], 0.28)], mid1 = [lerp(p1[0], knee[0], 0.78), lerp(p1[1], knee[1], 0.78), lerp(p1[2], knee[2], 0.78)];
-    tube(f(mid0), f(mid1), { radius: 0.0105, radius2: 0.0095, outer: PAL.orange, inner: PAL.orange, edge: 0.4, fade: false });
-    tube(f(knee), f(foot), { ...LG, radius: 0.008, radius2: 0.003 });
-    const ax = [-dir[2], 0, dir[0]];
-    for (const [jp, jr] of [[p1, 0.014], [knee, 0.013]]) poly(ring(jp, jr, ax, 14).map(f), { fill: '#0c1a26', stroke: PAL.white, width: 1.2, fade: false, depthBias: -0.004 });
+    if (e > 0) { const ox = Math.sin(psi) * 0.17 * e, oz = Math.cos(psi) * 0.17 * e; for (const q of [mp, p1, knee, foot]) { q[0] += ox; q[2] += oz; } }
+    // 加粗加固的腿：髋部舵机外壳、粗大腿配橙色作动器与液压杆、小腿上粗下细、足端防滑足垫
+    const LG = { outer: PAL.white, inner: '#132636', edge: 1.6, fade: false };
+    const up = [0, 1, 0], ax = [-dir[2], 0, dir[0]];
+    box(compose(f, [lerp(mp[0], p1[0], 0.5), 0.004, lerp(mp[2], p1[2], 0.5)], th), [HEX.L0 + 0.05, 0.078, 0.07], { fill: '#0c1a26', stroke: PAL.white, width: 1.3, alpha: 1, fade: false });
+    tube(f(p1), f(knee), { ...LG, radius: 0.021, radius2: 0.019 });
+    const mid0 = [lerp(p1[0], knee[0], 0.22), lerp(p1[1], knee[1], 0.22), lerp(p1[2], knee[2], 0.22)], mid1 = [lerp(p1[0], knee[0], 0.74), lerp(p1[1], knee[1], 0.74), lerp(p1[2], knee[2], 0.74)];
+    tube(f(mid0), f(mid1), { radius: 0.026, radius2: 0.024, outer: PAL.orange, inner: '#c4561c', edge: 1.0, fade: false, depthBias: -0.002 });
+    const rod0 = [p1[0] + up[0] * 0.034, p1[1] + 0.034, p1[2]], rod1 = [lerp(p1[0], knee[0], 0.85), lerp(p1[1], knee[1], 0.85) + 0.03, lerp(p1[2], knee[2], 0.85)];
+    tube(f(rod0), f(rod1), { radius: 0.006, outer: '#cfe3f0', inner: '#5f7a8f', edge: 0.9, fade: false, depthBias: -0.003 });
+    tube(f(knee), f(foot), { ...LG, radius: 0.019, radius2: 0.011 });
+    for (const [jp, jr] of [[p1, 0.03], [knee, 0.028]]) { poly(ring(jp, jr, ax, 18).map(f), { fill: '#0c1a26', stroke: PAL.white, width: 1.4, fade: false, depthBias: -0.006 }); poly(ring(jp, jr * 0.45, ax, 12).map(f), { stroke: PAL.orange, width: 1.3, fade: false, depthBias: -0.007 }); }
+    // 足垫
+    const fp = [foot[0], foot[1] + 0.006, foot[2]];
+    poly(ring(fp, 0.03, [0, 1, 0], 16).map(f), { fill: '#0c1a26', stroke: PAL.white, width: 1.3, fade: false, depthBias: -0.004 });
+    poly(ring([fp[0], fp[1] + 0.012, fp[2]], 0.022, [0, 1, 0], 14).map(f), { stroke: PAL.orange, width: 1.2, fade: false, depthBias: -0.005 });
   }
   return f;
 }

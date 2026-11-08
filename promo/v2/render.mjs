@@ -20,6 +20,7 @@ page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') 
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 await page.goto(`http://localhost:${server.address().port}/v2/index.html`);
 await page.waitForFunction('window.ready === true', null, { timeout: 120000 });
+if (args.style && args.style !== true) await page.evaluate(`setStyle(${JSON.stringify(args.style)})`);
 const all = await page.evaluate('shotList()');
 const ids = args.shots && args.shots !== true ? String(args.shots).split(',') : all.map((s) => s.id);
 for (const id of ids) {
@@ -31,7 +32,7 @@ for (const id of ids) {
     fs.mkdirSync(path.join(root, 'out/v2/stills'), { recursive: true });
     for (const f of list) {
       await page.evaluate(`frame(${JSON.stringify(id)}, ${f})`);
-      const out = path.join(root, `out/v2/stills/${id}_${String(f).padStart(4, '0')}.jpg`);
+      const out = path.join(root, `out/v2/stills/${id}_${String(f).padStart(4, '0')}${args.style && args.style !== true ? '_' + args.style : ''}.jpg`);
       fs.writeFileSync(out, await page.screenshot({ type: 'jpeg', quality: 92 }));
       console.log('still', out);
     }

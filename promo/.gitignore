@@ -6,3 +6,4 @@ audio/models/
 audio/.venv/
 audio/g2pW/
 __pycache__/
+v2/credits.local.json

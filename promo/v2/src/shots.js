@@ -224,7 +224,7 @@ const CREDITS_SHOT = { prepare: loadCredits, update(t) { // 片尾：绿色片�
   h.globalAlpha = pin; h.fillStyle = 'rgba(110,210,255,0.5)'; h.fillRect(PANEL_L[0] + 40, PANEL_L[1] + 160, PANEL_L[2] - 80, 2);
   h.font = `500 26px ${FONT}`; h.fillStyle = '#9fe8ff'; h.textAlign = 'left'; h.fillText('制作人员', PANEL_L[0] + 40, PANEL_L[1] + 200);
   const top = PANEL_L[1] + 230, bot = PANEL_L[1] + PANEL_L[3] - 20; const lines = CREDITS ? CREDITS.lines : []; const lh = 70;
-  const content = lines.length * lh + 160; const off = lerp(bot + 10, top - content + 110, clamp((t - 2.3) / 21));
+  const offEnd = (top + bot) / 2 - (lines.length * lh + 70); const off = lerp(bot + 10, offEnd, smooth(clamp((t - 2.3) / 19.5)) * 0.15 + clamp((t - 2.3) / 19.5) * 0.85);
   h.save(); h.beginPath(); h.rect(PANEL_L[0], top, PANEL_L[2], bot - top); h.clip();
   lines.forEach(([role, name], i) => { const y = off + i * lh; if (y < top - 40 || y > bot + 40) return; const fe = clamp((y - top) / 60) * clamp((bot - y) / 60);
     h.globalAlpha = pin * fe; h.font = `400 28px ${FONT}`; h.fillStyle = '#8fd8ff'; h.textAlign = 'left'; h.fillText(role, PANEL_L[0] + 60, y);
@@ -258,7 +258,7 @@ const SH = {
   } },
   s02: { transIn: { type: 'particles', dur: 0.8 }, update(t) { // 被截断的公路：救援车队被塌方堵住，警灯闪烁
     const T = T0.s02 + t; const sh = shake(t, 0.015, 1, 4);
-    setCam([368 - t * 0.5 + sh.x, 6.0 + sh.y, 15.5], [306, 1.5, -1], 36); FOG.start = 40; FOG.end = 520;
+    setCam([368 - t * 0.5 + sh.x, 6.0 + sh.y, 15.5], [306, 1.5, -1], 36); FOG.start = 40; FOG.end = 380;
     drawCity(T); drawVehicles(T, 1); ambient(T, 40, 0.35, '#c3d3df');
     drawHuman({ pos: [318.5, 0, 3.6], heading: -1.75, phase: 0, run: 0, vest: PAL.orange, helmet: '#fff' });
     drawHuman({ pos: [316.8, 0, -1.8], heading: -1.4, phase: T * 7, run: 0.25, vest: PAL.orange, helmet: '#fff', armsUp: true });
@@ -495,7 +495,7 @@ const SH = {
   } },
   s23: { transIn: { type: 'particles', dur: 0.7 }, update(t) { // 绞车救援：直升机悬停在废墟上空，救援队员顺钢缆降到被困者位置，红色标记变绿
     const T = T0.s23 + t; const HP = [VICTIM[0] - 0.9, 21, VICTIM[2] + 0.2];
-    setCam(vl([16, 2.5, 10], [14.5, 2.2, 9], smooth(t / 4)), vl([0.5, 9.5, -3], [0.5, 7.5, -3], smooth(t / 4)), 54); FOG.start = 15; FOG.end = 160;
+    setCam(vl([16, 2.5, 10], [14.8, 2.3, 9.2], smooth(t / 4)), [0.5, 10, -3], 58); FOG.start = 15; FOG.end = 160;
     drawCity(T); ambient(T, 12, 0.35, '#c3d3df');
     const hf = drawHeli({ pos: HP, heading: 0.3, pitch: 0, rotor: T * 30, speed: 1, t: T, search: true, cable: 0 });
     const tip = hf([1.75, 1.0, 0.4]); const ground = 1.45; const dn = smoother(range(t, 0.2, 2.5)); const yB = lerp(tip[1] - 1.5, ground + 1.75, dn);

@@ -38,16 +38,17 @@ for (const id of ids) {
     }
     continue;
   }
-  const dir = path.join(root, 'out/v2/frames', id); fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
+  const dir = path.join(root, 'out/v2/frames', id); const rng = args.range && args.range !== true ? String(args.range).split(':').map(Number) : null; // --range a:b 只渲染第 a~b-1 帧（多进程分段）
+  if (!rng) fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
   const step = +(args.step || 1);
   let n = 0; const t1 = Date.now();
-  for (let f = 0; f < frames; f += step) {
+  for (let f = rng ? rng[0] : 0; f < (rng ? Math.min(rng[1], frames) : frames); f += step) {
     await page.evaluate(`frame(${JSON.stringify(id)}, ${f})`);
-    fs.writeFileSync(path.join(dir, String(n++).padStart(5, '0') + '.jpg'), await page.screenshot({ type: 'jpeg', quality: 94 }));
+    fs.writeFileSync(path.join(dir, String(rng ? f : n).padStart(5, '0') + '.jpg'), await page.screenshot({ type: 'jpeg', quality: 94 })); n++;
   }
   const per = (Date.now() - t1) / n;
   console.log(`${id}: ${n} frames, prepare ${prepMs} ms, ${per.toFixed(0)} ms/frame`);
-  if (args.encode) {
+  if (args.encode && !rng) {
     fs.mkdirSync(path.join(root, 'out/v2/clips'), { recursive: true });
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(FPS / step), '-i', path.join(dir, '%05d.jpg'), '-c:v', 'libx264', '-preset', 'medium', '-crf', '16', '-pix_fmt', 'yuv420p', '-r', String(FPS), path.join(root, `out/v2/clips/${id}.mp4`)]);
     console.log('encoded', `out/v2/clips/${id}.mp4`);

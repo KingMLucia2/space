@@ -81,3 +81,16 @@ export function titleCard(h, t, { name = '六合', full = '空地协同生命搜
   if (team) { h.globalAlpha = a3; h.font = `32px ${FONT}`; h.fillStyle = 'rgba(255,255,255,0.85)'; h.fillText(team, W / 2, H - 140); }
   h.restore();
 }
+
+// 封面版式：文字左对齐放在画面左侧
+export function posterCard(h, { name = '六合', full = '空地协同生命搜救系统', slogan = '上天入地，不放弃每一个生命', W = 1920, H = 1080 } = {}) {
+  h.save(); h.textAlign = 'left'; h.textBaseline = 'alphabetic';
+  const g = h.createLinearGradient(0, 0, W * 0.6, 0); g.addColorStop(0, 'rgba(0,0,0,0.55)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  h.fillStyle = g; h.fillRect(0, 0, W * 0.6, H);
+  h.shadowColor = 'rgba(0,0,0,0.5)'; h.shadowBlur = 20; h.fillStyle = '#ffffff';
+  h.font = `bold 190px ${FONT}`; h.fillText(name, 140, 470);
+  h.font = `500 54px ${FONT}`; h.fillText(full, 146, 560);
+  h.fillStyle = '#ff6a14'; h.fillRect(146, 600, 120, 6);
+  h.fillStyle = 'rgba(255,255,255,0.92)'; h.font = `400 46px ${FONT}`; h.fillText(slogan, 146, 680);
+  h.restore();
+}

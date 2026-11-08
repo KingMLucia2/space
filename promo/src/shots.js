@@ -4,7 +4,7 @@ import { getWorld, placeDrone, attachHex, detachHex, applyEnv, CITY, rotorSpin, 
 import { buildCrevice } from './assets/crevice.js';
 import { buildAirport } from './assets/airport.js';
 import { buildCommand, drawScreenUI, SCREEN } from './assets/command.js';
-import { reconHUD, detectHUD, titleCard } from './fx/hud.js';
+import { reconHUD, detectHUD, titleCard, posterCard } from './fx/hud.js';
 import { clamp, lerp, range, smooth, smoother, easeIn, easeOut, shake, pathPoint } from './util.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -391,5 +391,18 @@ export const SHOTS = [
     titleCard(hud, t, { team: '' });
     ctx.rays = 0; ctx.streaks = 0;
     return EMPTY;
+  } },
+  // ———————— 封面图（不在正片里，用 --still 渲染） ————————
+  { id: 'poster', dur: 1, prepare: prepWorld, update(t, ctx) {
+    const { cam, engine, grade, hud } = ctx; const w = W; reset(w);
+    const dir = V(-0.8, 0, 0.6).normalize(), heading = Math.atan2(dir.x, dir.z) + Math.PI;
+    const P = V(60, 52, -40);
+    combined(w, P, heading, -0.12, 0.08, rotorSpin(20, { t0: 0 }), 0.5);
+    look(cam, P.clone().add(V(-7.4, 1.0, 5.6)), P.clone().add(V(-1.7, -1.2, -1.2)), 36);
+    w.city.shadowFocus(P.x, 0, P.z, 120);
+    ctx.dof = { focus: P.distanceTo(cam.position), aperture: 0.0012, maxblur: 0.006 };
+    grade.uBars = 0; grade.uVignette = 0.65; ctx.rays = 1.1;
+    posterCard(hud, {});
+    w.city.update(30, cam, engine.H); return w.scene;
   } },
 ];

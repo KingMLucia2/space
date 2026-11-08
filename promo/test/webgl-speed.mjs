@@ -1,0 +1,21 @@
+import { createRequire } from 'module';
+import http from 'http'; import fs from 'fs'; import path from 'path';
+const require = createRequire(import.meta.url);
+const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const types = { '.html': 'text/html', '.js': 'text/javascript' };
+const server = http.createServer((req, res) => { const f = path.join(root, decodeURIComponent(req.url.split('?')[0])); if (!fs.existsSync(f)) { res.writeHead(404); return res.end(); } res.writeHead(200, { 'Content-Type': types[path.extname(f)] || 'application/octet-stream' }); fs.createReadStream(f).pipe(res); }).listen(0);
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+await page.goto(`http://localhost:${server.address().port}/test/webgl-test.html`);
+await page.waitForFunction('window.ready === true');
+await page.evaluate(`renderFrame(0); renderer => 0`);
+const r = await page.evaluate(async () => {
+  const out = {}; const c = document.querySelector('canvas'); const gl = c.getContext('webgl2');
+  let t = performance.now(); for (let i = 0; i < 3; i++) { renderFrame(i / 24); gl.finish(); } out.renderFinish = (performance.now() - t) / 3;
+  t = performance.now(); let n = 0; for (let i = 0; i < 3; i++) { renderFrame(i / 24); const u = c.toDataURL('image/jpeg', 0.92); n = u.length; } out.renderJpeg = (performance.now() - t) / 3; out.jpegLen = n;
+  return out;
+});
+console.log(r);
+let t0 = Date.now(); for (let i = 0; i < 3; i++) { await page.evaluate(`renderFrame(${i / 24})`); await page.screenshot({ type: 'jpeg', quality: 92 }); } console.log('screenshot path ms', (Date.now() - t0) / 3);
+await browser.close(); server.close();

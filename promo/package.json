@@ -1,0 +1,10 @@
+{
+  "name": "promo",
+  "private": true,
+  "type": "module",
+  "description": "六足机器人×六轴无人机宣传片：three.js 场景逐帧渲染",
+  "dependencies": {
+    "@fontsource/noto-sans-sc": "^5.3.1",
+    "three": "0.170.0"
+  }
+}

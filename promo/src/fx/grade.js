@@ -59,9 +59,9 @@ export const GradeShader = {
       col *= 1.0 - uVignette * smoothstep(0.35, 1.15, length(q));
       if (uScan > 0.001) col *= 1.0 - uScan * 0.35 * step(0.5, fract(uv.y * uRes.y / 3.0));
       col += (hash(uv * uRes + fract(uTime * 7.13) * 100.0) - 0.5) * uGrain;
-      vec4 h = texture2D(tHud, uv); col = mix(col, h.rgb, h.a * uHud);
       col = mix(col, vec3(1.0), uFlash);
       col = mix(col, uFadeColor, uFade);
+      vec4 h = texture2D(tHud, uv); col = mix(col, h.rgb, h.a * uHud); // 字幕层在淡入淡出之后叠加，纯色底上也能显示
       if (uBars > 0.0 && (uv.y < uBars || uv.y > 1.0 - uBars)) col = vec3(0.0);
       gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
     }`,

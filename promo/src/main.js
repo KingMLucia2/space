@@ -77,7 +77,7 @@ window.frame = (shotId, f) => {
   grade.uniforms.uTime.value = t;
   bloom.strength = 0.45; bloom.radius = 0.5; bloom.threshold = 1.1;
   renderer.toneMappingExposure = 1.0;
-  hud.clearRect(0, 0, W, H);
+  hud.setTransform(1, 0, 0, 1, 0, 0); hud.clearRect(0, 0, W, H); hud.setTransform(W / 1920, 0, 0, H / 1080, 0, 0); // 界面层统一按 1920×1080 设计坐标绘制
   const cam = engine.camera; cam.fov = 35; cam.near = 0.05; cam.far = 6000; cam.up.set(0, 1, 0);
   const g = new Proxy(grade.uniforms, { get: (o, k) => o[k].value, set: (o, k, v) => { o[k].value = v; return true; } });
   const ctx = { engine, cam, hud, grade: g, f, shot, ao: null, dof: null, rays: 0.9, streaks: 0.35 };

@@ -1,12 +1,12 @@
 // 线稿城区：线框楼（近处画出楼层与开间线）、点云瓦砾堆、斜插楼板、道路标线、城外等高线地形、烟柱粒子、救援车辆。
 import { box, xform, PAL } from '../prims.js';
-import { poly, polyline, points, segments, ring, project, toCam, cam } from '../core.js';
+import { poly, polyline, points, segments, ring, project, toCam, cam, line, custom, pxPerMeter } from '../core.js';
 import { makeNoise2D, mulberry32, clamp, smooth, lerp } from '../util.js';
 
 const TN = makeNoise2D(77);
 export const CITY = {
   half: 230, block: 46, landing: [0, 0, 6.5], roadBlockX: 300, dock: [470, 0, -250],
-  survivors: [[0.6, -1.2], [-26, 98], [46, 72], [-36, -84], [94, -38], [-108, -16], [70, -112], [-58, 34]],
+  survivors: [[0.5, -3.0], [-26, 98], [46, 72], [-36, -84], [94, -38], [-108, -16], [70, -112], [-58, 34]],
 };
 export function terrainHeight(x, z) {
   const out = Math.hypot(Math.max(0, Math.abs(x) - CITY.half), Math.max(0, Math.abs(z) - CITY.half));
@@ -40,12 +40,12 @@ export function buildCity() {
     for (const [x, z, w0, d0] of lots) {
       const w = w0 * (0.75 + rnd() * 0.25), d = d0 * (0.75 + rnd() * 0.25), h = 9 + rnd() * (dist > 0.7 ? 28 : 40);
       const forced = near(x, z, split ? 9 : 16), r = rnd() - (1 - dist) * 0.4;
-      if (forced || r < 0.2) { pile(x, z, Math.max(w, d) * 0.85, Math.min(10, 3 + h * 0.18), 420 + h * 6, { slabs: 1.6, rebar: 2 }); if (rnd() < 0.6) { const wh = 5 + rnd() * 8; B.push({ x: x + (rnd() - 0.5) * w * 0.5, z: z + (rnd() - 0.5) * d * 0.5, w: w * (0.3 + rnd() * 0.3), d: 0.4, h: wh, ry: rnd() * 3, rx: (rnd() - 0.5) * 0.25, rz: (rnd() - 0.5) * 0.3, wall: true }); } }
-      else if (r < 0.42) { const bh = (1 + Math.floor(rnd() * 2)) * 3.2; B.push({ x, z, w, d, h: bh, ry: (rnd() - 0.5) * 0.05 }); for (let k = 0; k < 3 + Math.floor(rnd() * 3); k++) slabs.push({ x: x + (rnd() - 0.5) * 2, y: bh + 0.5 + k * 0.9, z: z + (rnd() - 0.5) * 2, w: w * (0.75 + rnd() * 0.3), d: d * (0.75 + rnd() * 0.3), ry: (rnd() - 0.5) * 0.3, rx: (rnd() - 0.5) * 0.5, rz: (rnd() - 0.5) * 0.5 }); pile(x, z, Math.max(w, d) * 0.9, 3 + rnd() * 2, 220); }
-      else { const lean = rnd() < 0.22 ? (rnd() < 0.5 ? -1 : 1) * (0.05 + rnd() * 0.09) : 0; const ax = rnd() < 0.5; const hh = h * (r < 0.6 ? 0.8 : 1);
+      if (forced || r < 0.3) { pile(x, z, Math.max(w, d) * 0.85, Math.min(10, 3 + h * 0.18), 420 + h * 6, { slabs: 1.6, rebar: 2 }); if (rnd() < 0.6) { const wh = 5 + rnd() * 8; B.push({ x: x + (rnd() - 0.5) * w * 0.5, z: z + (rnd() - 0.5) * d * 0.5, w: w * (0.3 + rnd() * 0.3), d: 0.4, h: wh, ry: rnd() * 3, rx: (rnd() - 0.5) * 0.25, rz: (rnd() - 0.5) * 0.3, wall: true }); } }
+      else if (r < 0.5) { const bh = (1 + Math.floor(rnd() * 2)) * 3.2; B.push({ x, z, w, d, h: bh, ry: (rnd() - 0.5) * 0.05 }); for (let k = 0; k < 3 + Math.floor(rnd() * 3); k++) slabs.push({ x: x + (rnd() - 0.5) * 2, y: bh + 0.5 + k * 0.9, z: z + (rnd() - 0.5) * 2, w: w * (0.75 + rnd() * 0.3), d: d * (0.75 + rnd() * 0.3), ry: (rnd() - 0.5) * 0.3, rx: (rnd() - 0.5) * 0.5, rz: (rnd() - 0.5) * 0.5 }); pile(x, z, Math.max(w, d) * 0.9, 3 + rnd() * 2, 220); }
+      else { const lean = rnd() < 0.34 ? (rnd() < 0.5 ? -1 : 1) * (0.06 + rnd() * 0.12) : 0; const ax = rnd() < 0.5; const hh = h * (r < 0.6 ? 0.8 : 1);
         const b = { x, z, w, d, h: hh, ry: (rnd() - 0.5) * 0.06, rx: ax ? lean : 0, rz: ax ? 0 : lean, windows: true, broken: [] };
-        if (r < 0.78) for (let k = 0; k < 3; k++) { const bw = w * (0.3 + rnd() * 0.4), bd = d * (0.3 + rnd() * 0.4), bh = 2 + rnd() * 6; b.broken.push({ ox: (rnd() - 0.5) * (w - bw), oz: (rnd() - 0.5) * (d - bd), w: bw, d: bd, h: bh, rx: (rnd() - 0.5) * 0.1, rz: (rnd() - 0.5) * 0.1 }); }
-        B.push(b); if (r < 0.78) pile(x + (rnd() - 0.5) * w, z + d / 2 + 3, Math.max(w, d) * 0.45, 2.5, 60); }
+        if (r < 0.88) for (let k = 0; k < 3; k++) { const bw = w * (0.3 + rnd() * 0.4), bd = d * (0.3 + rnd() * 0.4), bh = 2 + rnd() * 6; b.broken.push({ ox: (rnd() - 0.5) * (w - bw), oz: (rnd() - 0.5) * (d - bd), w: bw, d: bd, h: bh, rx: (rnd() - 0.5) * 0.1, rz: (rnd() - 0.5) * 0.1 }); }
+        B.push(b); if (r < 0.88) pile(x + (rnd() - 0.5) * w, z + d / 2 + 3, Math.max(w, d) * 0.45, 2.5, 60); }
     }
   }
   pile(0.5, -9.5, 9.5, 4.2, 1000, { slabs: 2, rebar: 2.5, dense: true });
@@ -62,9 +62,9 @@ export function buildCity() {
     const n = p.dense ? 9000 : Math.round(p.n * 0.9);
     const tmp = [];
     for (let k = 0; k < n; k++) {
-      const a = rnd() * 6.28, rr = Math.sqrt(rnd()) * p.r; const x = p.cx + Math.cos(a) * rr * p.sx, z = p.cz + Math.sin(a) * rr * p.sz;
+      const a = rnd() * 6.28, rr = Math.sqrt(rnd()) * p.r * (1 + 0.2 * Math.sin(3 * a + p.cx) + 0.12 * Math.sin(5 * a + p.cz)); const x = p.cx + Math.cos(a) * rr * p.sx, z = p.cz + Math.sin(a) * rr * p.sz;
       if (keepOut(x, z, 0.8)) continue;
-      const hm = p.h * 0.8 * Math.max(0, 1 - (rr / p.r) ** 2) ** 1.3 * (1 + TN(x * 0.4, z * 0.4) * 0.3);
+      const hm = p.h * 0.8 * Math.max(0, 1 - Math.min(1, rr / p.r) ** 2) ** 1.3 * (1 + TN(x * 0.4, z * 0.4) * 0.3);
       tmp.push(x, Math.max(0, hm + (rnd() - 0.3) * 0.5), z);
     }
     cloud.push({ cx: p.cx, cz: p.cz, r: p.r, h: p.h, arr: new Float32Array(tmp) });
@@ -92,7 +92,22 @@ export function buildCity() {
   for (let x = 207; x < 1100; x += 6) { const y = terrainHeight(x, 0) + 0.05, y2 = terrainHeight(x + 6, 0) + 0.05; road.push(x, y, -5.5, x + 6, y2, -5.5, x, y, 5.5, x + 6, y2, 5.5); if (Math.abs(x - bx) > 22 && (x / 6) % 2 < 1) road.push(x, y, 0, x + 3.5, y2, 0); }
   // 街区地面网格
   const grid = []; for (let u = -220; u <= 220; u += 10) { grid.push(u, 0, -220, u, 0, 220, -220, 0, u, 220, 0, u); }
-  C = { B, piles, slabs, rebar, cars, trees, cloud, contour: new Float32Array(contour), road: new Float32Array(road), grid: new Float32Array(grid), rebarF: new Float32Array(rebar.flat()) };
+  // 地裂缝：地面上的锯齿折线（避开中央广场）
+  const cracks = [];
+  for (let k = 0; k < 10; k++) {
+    let x = (rnd() - 0.5) * 380, z = (rnd() - 0.5) * 380; if (Math.abs(x) < 30 && Math.abs(z) < 34) x += 70;
+    let a = rnd() * 6.283; const n = 10 + Math.floor(rnd() * 12); const pts = [[x, 0.05, z]];
+    for (let i = 0; i < n; i++) { a += (rnd() - 0.5) * 0.9; const L = 2.5 + rnd() * 4; x += Math.cos(a) * L; z += Math.sin(a) * L; pts.push([x, 0.05, z]); }
+    cracks.push(pts);
+  }
+  // 瓦砾上的零星火点
+  const fires = [];
+  for (const p of piles) { if (Math.abs(p.cx) < 14 && Math.abs(p.cz) < 20) continue; if (rnd() < 0.3) fires.push([p.cx + (rnd() - 0.5) * p.r, p.h * 0.5, p.cz + (rnd() - 0.5) * p.r, 0.6 + rnd() * 1.2, rnd()]); }
+  // 基站所在高地的地形网格
+  const mesh = []; const MS = 10, SS = 5;
+  for (let x = 330; x <= 640; x += MS) for (let z = -430; z < -80; z += SS) mesh.push(x, terrainHeight(x, z) + 0.05, z, x, terrainHeight(x, z + SS) + 0.05, z + SS);
+  for (let z = -430; z <= -80; z += MS) for (let x = 330; x < 640; x += SS) mesh.push(x, terrainHeight(x, z) + 0.05, z, x + SS, terrainHeight(x + SS, z) + 0.05, z);
+  C = { B, piles, slabs, rebar, cars, trees, cloud, cracks, fires, mesh: new Float32Array(mesh), contour: new Float32Array(contour), road: new Float32Array(road), grid: new Float32Array(grid), rebarF: new Float32Array(rebar.flat()) };
   return C;
 }
 
@@ -109,51 +124,84 @@ export function groundGrid(center, size = 30, step = 1, alpha = 0.6) {
   for (let u = -size / 2; u <= size / 2; u += step) { a.push(cx + u, 0.005, cz - size / 2, cx + u, 0.005, cz + size / 2, cx - size / 2, 0.005, cz + u, cx + size / 2, 0.005, cz + u); }
   segments(new Float32Array(a), { stroke: '#2b6d99', alpha, width: 1, depthBias: 7e4 });
 }
+// opts: lite（省略细节）、ground（地面线条透明度）、pts（点云透明度）、xray {x,z,r,k}（探测时瓦砾变透明）
 export function drawCity(t, opts = {}) {
-  const c = buildCity(); const cp = cam.position; const lite = opts.lite;
-  segments(c.contour, { stroke: '#2f86b8', alpha: 0.7, width: 1, depthBias: 1e5 });
-  segments(c.grid, { stroke: PAL.faint, alpha: 0.45, width: 1, depthBias: 9e4 });
-  segments(c.road, { stroke: '#46a6dc', alpha: 0.85, width: 1.4, depthBias: 8e4, glow: 0.25 });
+  const c = buildCity(); const cp = cam.position; const lite = opts.lite; const ga = opts.ground ?? 1, pa = opts.pts ?? 1; const xr = opts.xray;
+  if (ga > 0.01) {
+    segments(c.contour, { stroke: '#2f86b8', alpha: 0.7 * ga, width: 1, depthBias: 1e5 });
+    segments(c.grid, { stroke: PAL.faint, alpha: 0.32 * ga, width: 1, depthBias: 9e4 });
+    segments(c.road, { stroke: '#46a6dc', alpha: 0.85 * ga, width: 1.4, depthBias: 8e4, glow: 0.18 * ga });
+    segments(c.mesh, { stroke: '#2a7fb0', alpha: 0.42 * ga, width: 1, depthBias: 9.6e4 });
+    for (const pts of c.cracks) polyline(pts, { stroke: '#ff8a3a', width: 1.6, alpha: 0.8 * ga, glow: 0.8 * ga, glowColor: '#ff6a1a', depthBias: 7.5e4 });
+  }
   for (const b of c.B) {
     const dist = Math.hypot(b.x - cp.x, b.z - cp.z, (b.h / 2) - cp.y);
     const f = xform([b.x, 0, b.z], b.ry || 0, b.rx || 0, b.rz || 0);
     box(f, [b.w, b.h, b.d], dist < 260 && !lite ? ST.bld : ST.bldFar, { base: true, skipBottom: true, windows: b.windows && dist < 260 && !lite ? { floor: 3.2, bay: 4 } : null });
     if (b.broken) for (const k of b.broken) box(xform([b.x + k.ox, b.h, b.z + k.oz], b.ry || 0, (b.rx || 0) + (k.rx || 0), (b.rz || 0) + (k.rz || 0)), [k.w, k.h, k.d], ST.bldFar, { base: true, skipBottom: true });
   }
-  for (const s of c.slabs) { const dist = Math.hypot(s.x - cp.x, s.z - cp.z, s.y - cp.y); if (dist > (lite ? 160 : 420)) continue; box(xform([s.x, s.y, s.z], s.ry, s.rx, s.rz), [s.w, 0.25, s.d], ST.slab); }
-  for (const p of c.cloud) { const dist = Math.hypot(p.cx - cp.x, p.cz - cp.z, cp.y); const step = dist > 250 ? 3 : dist > 120 ? 2 : 1;
-    let arr = p.arr; if (step > 1) { const n = Math.floor(arr.length / 3 / step); const a2 = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a2[i * 3] = arr[i * step * 3]; a2[i * 3 + 1] = arr[i * step * 3 + 1]; a2[i * 3 + 2] = arr[i * step * 3 + 2]; } arr = a2; }
-    points(arr, { color: '#86c4e6', alpha: 0.7, size: 1.7, sizeByDepth: true }); }
-  segments(c.rebarF, { stroke: '#d9925a', alpha: 0.65, width: 1 });
+  for (const s of c.slabs) { const dist = Math.hypot(s.x - cp.x, s.z - cp.z, s.y - cp.y); if (dist > (lite ? 160 : 420)) continue;
+    let st = ST.slab; if (xr) { const q = xr.k * (1 - smooth((Math.hypot(s.x - xr.x, s.z - xr.z) - xr.r * 0.6) / (xr.r * 0.4))); if (q > 0.01) st = { ...ST.slab, fillAlpha: 1 - 0.85 * q, alpha: 0.75 * (1 - 0.5 * q) }; }
+    box(xform([s.x, s.y, s.z], s.ry, s.rx, s.rz), [s.w, 0.25, s.d], st); }
+  if (pa > 0.01) {
+    for (const p of c.cloud) { const dist = Math.hypot(p.cx - cp.x, p.cz - cp.z, cp.y); const step = dist > 250 ? 3 : dist > 120 ? 2 : 1;
+      let arr = p.arr; if (step > 1) { const n = Math.floor(arr.length / 3 / step); const a2 = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a2[i * 3] = arr[i * step * 3]; a2[i * 3 + 1] = arr[i * step * 3 + 1]; a2[i * 3 + 2] = arr[i * step * 3 + 2]; } arr = a2; }
+      const near = xr ? xr.k * (1 - smooth((Math.hypot(p.cx - xr.x, p.cz - xr.z) - p.r - xr.r * 0.5) / xr.r)) : 0;
+      points(arr, { color: '#86c4e6', alpha: 0.7 * pa * (1 - 0.6 * near), size: 1.7, sizeByDepth: true, minSize: 1.1 }); }
+    segments(c.rebarF, { stroke: '#d9925a', alpha: 0.65 * pa, width: 1 });
+  }
   if (!lite) for (const k of c.cars) { const dist = Math.hypot(k.x - cp.x, k.z - cp.z, cp.y); if (dist > 300) continue; const f = xform([k.x, 0, k.z], k.ry); box(f, [4.2, 0.75 * k.crush, 1.8], ST.car, { base: true, skipBottom: true }); box(xform([k.x, 0.75 * k.crush, k.z], k.ry), [2.2, 0.6 * k.crush, 1.6], ST.car, { base: true, skipBottom: true }); }
   for (const [x, y, z, s] of c.trees) { const dist = Math.hypot(x - cp.x, z - cp.z, y - cp.y); if (dist > 500) continue; polyline([[x, y, z], [x, y + 3 * s, z]], { stroke: '#3b8fbf', alpha: 0.6, width: 1 }); poly(ring([x, y + 4 * s, z], 2 * s, [0, 1, 0], 14), { fill: 'rgba(4,14,22,0.9)', stroke: '#3b8fbf', alpha: 0.7, width: 1 }); }
-  drawSmoke(t, opts);
+  if (pa > 0.01) drawSmoke(t, opts, pa);
 }
 
-// 烟柱：上升的粒子＋底部火光
-const SMOKE = [[-84, -60, 1], [64, 112, 0.8], [136, -100, 1.2], [-150, 90, 0.7]];
-function drawSmoke(t, opts) {
+// 烟柱：上升并被风吹斜的粒子＋底部火光；瓦砾上零星闪烁的火点
+const SMOKE = [[-84, -60, 1.1], [64, 112, 0.9], [136, -100, 1.3], [-150, 90, 0.8], [30, -130, 0.9], [-120, -150, 0.7], [160, 40, 0.8]];
+function drawSmoke(t, opts, pa = 1) {
   const R = mulberry32(9);
   for (const [sx, sz, s] of SMOKE) {
-    const n = 260, arr = new Float32Array(n * 3);
-    for (let k = 0; k < n; k++) { const life = 18 + R() * 10, ph = R(); const age = ((t + ph * life) % life); const u = age / life;
-      const sw = 2 + u * 22 * s; arr[k * 3] = sx + (R() - 0.5) * sw + age * 1.6; arr[k * 3 + 1] = 2 + age * (2.4 + R()) * s; arr[k * 3 + 2] = sz + (R() - 0.5) * sw + age * 0.4; }
-    points(arr, { color: '#8fa6bb', alpha: 0.35, size: 2.2, sizeByDepth: true });
-    const fl = 0.6 + 0.4 * Math.sin(t * 9 + sx);
-    points(new Float32Array([sx, 1.2, sz, sx + 2, 0.8, sz + 1.5, sx - 1.5, 1, sz - 1]), { color: PAL.amber, alpha: 0.9 * fl, size: 3, glow: 1.2 * fl, glowColor: PAL.orange });
+    const n = 900, arr = new Float32Array(n * 3);
+    for (let k = 0; k < n; k++) { const life = 16 + R() * 10, ph = R(); const age = ((t + ph * life) % life); const u = age / life;
+      const sw = 2.5 + u * 26 * s; const ang = R() * 6.283, rr = Math.sqrt(R()) * sw;
+      arr[k * 3] = sx + Math.cos(ang) * rr + age * 1.8 * s; arr[k * 3 + 1] = 1.5 + age * (2.6 + R() * 1.2) * s; arr[k * 3 + 2] = sz + Math.sin(ang) * rr + age * 0.5; }
+    points(arr, { color: '#b8cad8', alpha: 0.5 * pa, size: 2.8, sizeByDepth: true, minSize: 1.6 });
+    for (let k = 0; k < 9; k++) { const hh = ((t * 3.2 * s + k * 10) % 90); const r = (3 + hh * 0.32) * s; const fa = (1 - hh / 90) * smooth(hh / 8);
+      poly(ring([sx + hh * 0.62, 1.5 + hh, sz + hh * 0.18], r, [0, 1, 0], 28), { stroke: '#b4c8d8', width: 1.6, alpha: 0.5 * fa * pa, glow: 0.25 * fa * pa, depthBias: 0 }); }
+    const fl = 0.6 + 0.4 * Math.sin(t * 9 + sx); const fa = [];
+    for (let k = 0; k < 24; k++) { const a = R() * 6.283, r = R() * 4 * s; fa.push(sx + Math.cos(a) * r, 0.5 + R() * 2.5 * (0.6 + 0.4 * Math.sin(t * 7 + k)), sz + Math.sin(a) * r); }
+    points(new Float32Array(fa), { color: PAL.amber, alpha: 0.85 * fl * pa, size: 3, glow: 1.4 * fl * pa, glowColor: PAL.orange, sizeByDepth: true, minSize: 1.5 });
   }
+  for (const [x, y, z, s, ph] of buildCity().fires) { const fl = 0.55 + 0.45 * Math.sin(t * (6 + ph * 5) + ph * 20);
+    points(new Float32Array([x, y + 0.3, z, x + 0.8 * s, y + 0.1, z + 0.5 * s, x - 0.6 * s, y + 0.2, z - 0.4 * s]), { color: '#ffb347', alpha: 0.9 * fl * pa, size: 2.6, glow: 1.6 * fl * pa, glowColor: '#ff6a1a', sizeByDepth: true, minSize: 1.4 }); }
 }
 
-// 救援车辆：线框车身＋闪烁警灯
+// 救援车辆：车厢、驾驶室与挡风玻璃、车轮、色带、消防车云梯、闪烁警灯排（地面映出红蓝光晕）、救护车红十字
 const VEH = [[326, 2.2, -Math.PI / 2, 'fire'], [338, -2.6, -Math.PI / 2 + 0.08, 'fire'], [352, 2.0, -Math.PI / 2 - 0.05, 'amb']];
 export function drawVehicles(t, on = 1) {
   VEH.forEach(([x, z, ry, kind], i) => {
-    const y = terrainHeight(x, z); const len = kind === 'fire' ? 8.6 : 6.4; const f = xform([x, y, z], ry);
-    const st = { fill: 'rgba(5,14,24,0.96)', stroke: kind === 'fire' ? '#ff6a4a' : PAL.white, width: 1.3, alpha: 0.9 };
-    box((p) => f([p[0], p[1], p[2] - len * 0.14]), [2.5, 2.5, len * 0.68], st, { base: true, skipBottom: true });
-    box((p) => f([p[0], p[1] + 0.65, p[2] + len * 0.355]), [2.5, 2.15, len * 0.27], st, { base: true, skipBottom: true });
-    const k = (t * 2.2 + i * 0.37) % 1; const red = on * (k < 0.25 ? 1 : 0.15), blue = on * (k > 0.5 && k < 0.75 ? 1 : 0.15);
-    points(new Float32Array([...f([0.5, 2.95, len * 0.36]), ...f([0.3, 2.95, len * 0.36])]), { color: '#ff3b30', alpha: red, size: 4, glow: 2.5 * red, glowColor: '#ff3b30', fade: false });
-    points(new Float32Array([...f([-0.5, 2.95, len * 0.36]), ...f([-0.3, 2.95, len * 0.36])]), { color: '#3a7bff', alpha: blue, size: 4, glow: 2.5 * blue, glowColor: '#3a7bff', fade: false });
+    const y = terrainHeight(x, z); const fire = kind === 'fire'; const len = fire ? 8.6 : 6.4; const f = xform([x, y, z], ry);
+    const col = fire ? '#ff6a4a' : PAL.white; const st = { fill: 'rgba(5,14,24,0.97)', stroke: col, width: 1.3, alpha: 0.95 };
+    const bodyL = len * 0.68, cabL = len * 0.27, hb = fire ? 2.55 : 2.45;
+    box((p) => f([p[0], p[1] + 0.55, p[2] - len / 2 + bodyL / 2]), [2.5, hb, bodyL], { ...st, innerAlpha: 0.35, innerColor: col }, { base: true, windows: fire ? { floor: 0.42, bay: bodyL / 3 } : null });
+    const cf = (p) => f([p[0], p[1] + 0.55, p[2] + len / 2 - cabL / 2]);
+    box(cf, [2.5, 2.1, cabL], st, { base: true });
+    poly([[-1.1, 1.05, cabL / 2 + 0.01], [1.1, 1.05, cabL / 2 + 0.01], [1.1, 1.95, cabL / 2 + 0.01], [-1.1, 1.95, cabL / 2 + 0.01]].map(cf), { fill: 'rgba(60,140,200,0.35)', stroke: '#9fe0ff', width: 1.1, alpha: 0.9, depthBias: -0.01 });
+    for (const sd of [-1, 1]) poly([[sd * 1.26, 1.1, -cabL * 0.3], [sd * 1.26, 1.1, cabL * 0.35], [sd * 1.26, 1.9, cabL * 0.35], [sd * 1.26, 1.9, -cabL * 0.3]].map(cf), { fill: 'rgba(60,140,200,0.3)', stroke: '#9fe0ff', width: 1, alpha: 0.85, depthBias: -0.01 });
+    for (const za of (fire ? [-len * 0.36, -len * 0.21, len * 0.3] : [-len * 0.3, len * 0.3])) for (const sd of [-1, 1]) {
+      poly(ring([sd * 1.27, 0.5, za], 0.5, [1, 0, 0], 18).map(f), { fill: '#05090e', stroke: PAL.white, width: 1.2, alpha: 0.9, depthBias: -0.02 });
+      poly(ring([sd * 1.28, 0.5, za], 0.2, [1, 0, 0], 10).map(f), { stroke: '#8fb7d2', width: 1, alpha: 0.8, depthBias: -0.03 });
+    }
+    for (const sd of [-1, 1]) polyline([[sd * 1.26, 1.25, -len / 2 + 0.1], [sd * 1.26, 1.25, len / 2 - 0.1]].map(f), { stroke: fire ? '#ffffff' : '#ff4a3a', width: 2.4, alpha: 0.9, depthBias: -0.015 });
+    if (fire) { const yl = 0.55 + hb + 0.28;
+      for (const sx of [-0.45, 0.45]) { polyline([[sx, yl, -len / 2 + 0.3], [sx, yl, len / 2 - 0.4]].map(f), { stroke: '#d8e8f2', width: 1.5, alpha: 0.95 }); for (const zz of [-len / 2 + 0.8, len * 0.1]) line(f([sx, 0.55 + hb, zz]), f([sx, yl, zz]), { stroke: '#d8e8f2', width: 1, alpha: 0.8 }); }
+      for (let zz = -len / 2 + 0.5; zz < len / 2 - 0.4; zz += 0.45) polyline([[-0.45, yl, zz], [0.45, yl, zz]].map(f), { stroke: '#d8e8f2', width: 1, alpha: 0.7 }); }
+    else { const rz = -len / 2 - 0.01; polyline([[0, 0.65, rz], [0, 2.95, rz]].map(f), { stroke: PAL.white, width: 1, alpha: 0.8 }); polyline([[-0.32, 2.15, rz], [0.32, 2.15, rz]].map(f), { stroke: '#ff3b30', width: 4, alpha: 0.95, cap: 'butt' }); polyline([[0, 1.83, rz], [0, 2.47, rz]].map(f), { stroke: '#ff3b30', width: 4, alpha: 0.95, cap: 'butt' }); }
+    const k = (t * 2.2 + i * 0.37) % 1; const red = on * (k < 0.25 ? 1 : 0.12), blue = on * (k > 0.5 && k < 0.75 ? 1 : 0.12);
+    const ly = 0.55 + 2.1 + 0.1, lz = len / 2 - cabL / 2;
+    box((p) => f([p[0], p[1] + ly, p[2] + lz]), [1.7, 0.16, 0.36], { fill: 'rgba(10,20,30,0.95)', stroke: '#cfe6f5', width: 1, alpha: 0.85 });
+    points(new Float32Array([...f([0.35, ly + 0.1, lz]), ...f([0.65, ly + 0.1, lz])]), { color: '#ff3b30', alpha: red, size: 4, glow: 2.5 * red, glowColor: '#ff3b30', fade: false });
+    points(new Float32Array([...f([-0.35, ly + 0.1, lz]), ...f([-0.65, ly + 0.1, lz])]), { color: '#3a7bff', alpha: blue, size: 4, glow: 2.5 * blue, glowColor: '#3a7bff', fade: false });
+    points(new Float32Array([...f([1.05, 1.0, -len / 2 - 0.02]), ...f([-1.05, 1.0, -len / 2 - 0.02])]), { color: '#ff3b30', alpha: 0.9, size: 3, glow: 0.6, glowColor: '#ff3b30', fade: false });
+    const gp = project(f([0, 0.1, lz])); if (gp) { const rp = pxPerMeter(gp.d) * 3.2; custom(gp.d, (L, G) => { for (const [c, a] of [['255,59,48', red], ['58,123,255', blue]]) { if (a < 0.2) continue; const g = G.createRadialGradient(gp.x / 2, gp.y / 2, 0, gp.x / 2, gp.y / 2, rp / 2); g.addColorStop(0, `rgba(${c},${0.25 * a})`); g.addColorStop(1, `rgba(${c},0)`); G.fillStyle = g; G.fillRect(gp.x / 2 - rp / 2, gp.y / 2 - rp / 2, rp, rp); } }); }
   });
 }

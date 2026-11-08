@@ -1,12 +1,13 @@
-// 第二版帧驱动：按镜头逐帧绘制；镜头可以声明入场转场（擦除、光圈、叠化），转场期间同时画上一镜头的延续和本镜头，再按蒙版合成。
+// 第二版帧驱动：按镜头逐帧绘制；镜头可以声明入场转场（擦除、扫描、光圈、叠化），转场期间同时画上一镜头的延续和本镜头，再按蒙版合成。
+// 同一地点的连续镜头不用转场，而是让相机路径跨镜头连续（见 shots.js）。
 import { W, H, out, outCtx, composite, flush, resetFrame, mkCanvas, POST, hud } from './core.js';
 import { SHOTS } from './shots.js';
+import { UI_TEXT } from './hud.js';
 import { clamp, smooth } from './util.js';
 
 export const FPS = 30;
 const bufA = mkCanvas(W, H), A = bufA.getContext('2d'), bufB = mkCanvas(W, H), B = bufB.getContext('2d');
-const FONT_TEXT = '灾区生命探测态势侦测完成已救出人空中侦察测绘热成像生命探测雷达红外发现生命体征埋深置信度呼吸次分心率六合空地协同搜救系统上天入地不放弃每一个应急救援航空基地基站妈妈来电0123456789·/:';
-const fontsReady = Promise.all(['400', '500', '700'].map((w) => document.fonts.load(`${w} 40px "Noto Sans SC"`, FONT_TEXT))).catch(() => null);
+const fontsReady = Promise.all(['400', '500', '700'].map((w) => document.fonts.load(`${w} 40px "Noto Sans SC"`, UI_TEXT))).catch(() => null);
 
 function renderShot(shot, t, target) {
   resetFrame();
@@ -30,13 +31,19 @@ window.frame = (id, f) => {
   renderShot(prev, prev.dur + t, A);
   renderShot(shot, t, B);
   const k = smooth(t / tr.dur);
-  const o = outCtx; o.globalCompositeOperation = 'source-over'; o.globalAlpha = 1;
+  const o = outCtx; o.globalCompositeOperation = 'source-over'; o.globalAlpha = 1; o.setTransform(1, 0, 0, 1, 0, 0);
   if (tr.type === 'dissolve') { o.drawImage(bufA, 0, 0); o.globalAlpha = k; o.drawImage(bufB, 0, 0); o.globalAlpha = 1; }
-  else if (tr.type === 'wipe') { // 竖直扫描线从左到右，左边是新镜头
-    const x = k * (W + 80) - 40;
+  else if (tr.type === 'wipe') { // 竖直发光扫描线从左到右，左边是新镜头
+    const x = k * (W + 120) - 60;
     o.drawImage(bufA, 0, 0); o.save(); o.beginPath(); o.rect(0, 0, Math.max(0, x), H); o.clip(); o.drawImage(bufB, 0, 0); o.restore();
-    const g = o.createLinearGradient(x - 60, 0, x + 6, 0); g.addColorStop(0, 'rgba(87,207,255,0)'); g.addColorStop(0.85, 'rgba(87,207,255,0.25)'); g.addColorStop(1, 'rgba(220,245,255,0.95)');
-    o.fillStyle = g; o.fillRect(x - 60, 0, 66, H);
+    const g = o.createLinearGradient(x - 90, 0, x + 4, 0); g.addColorStop(0, 'rgba(87,207,255,0)'); g.addColorStop(0.8, 'rgba(87,207,255,0.22)'); g.addColorStop(1, 'rgba(225,248,255,0.95)');
+    o.fillStyle = g; o.fillRect(x - 90, 0, 94, H);
+    o.globalCompositeOperation = 'lighter'; o.fillStyle = 'rgba(120,220,255,0.10)'; for (let y = 0; y < H; y += 6) o.fillRect(x - 30, y, 30, 2); o.globalCompositeOperation = 'source-over';
+  } else if (tr.type === 'scan') { // 水平扫描线从上到下，像设备画面刷新
+    const y = k * (H + 80) - 40;
+    o.drawImage(bufA, 0, 0); o.save(); o.beginPath(); o.rect(0, 0, W, Math.max(0, y)); o.clip(); o.drawImage(bufB, 0, 0); o.restore();
+    const g = o.createLinearGradient(0, y - 70, 0, y + 3); g.addColorStop(0, 'rgba(87,207,255,0)'); g.addColorStop(0.85, 'rgba(87,207,255,0.25)'); g.addColorStop(1, 'rgba(225,248,255,0.95)');
+    o.fillStyle = g; o.fillRect(0, y - 70, W, 73);
   } else if (tr.type === 'iris') { // 新镜头从某点以圆形展开
     const cx = (tr.x ?? 0.5) * W, cy = (tr.y ?? 0.5) * H, r = k * Math.hypot(W, H);
     o.drawImage(bufA, 0, 0); o.save(); o.beginPath(); o.arc(cx, cy, r, 0, Math.PI * 2); o.clip(); o.drawImage(bufB, 0, 0); o.restore();

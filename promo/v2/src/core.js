@@ -169,7 +169,7 @@ export function flush() {
     const a = (st.alpha ?? 1) * k * ra;
     if (it.pts) { // 点云
       L.fillStyle = st.color || PAL.line; const sz = (st.size || 1.6) * WS; const p = it.pts;
-      for (let i = 0; i < p.length; i += 3) { const ak = st.fade === false ? 1 : fogK(p[i + 2]); if (ak <= 0.01) continue; L.globalAlpha = (st.alpha ?? 1) * ak; const z = st.sizeByDepth ? clamp(sz * 40 / p[i + 2], 0.8, sz * 2.5) : sz; L.fillRect(p[i] - z / 2, p[i + 1] - z / 2, z, z); }
+      for (let i = 0; i < p.length; i += 3) { const ak = st.fade === false ? 1 : fogK(p[i + 2]); if (ak <= 0.01) continue; L.globalAlpha = (st.alpha ?? 1) * ak; const z = st.sizeByDepth ? clamp(sz * 40 / p[i + 2], (st.minSize || 0.8) * WS, sz * 2.5) : sz; L.fillRect(p[i] - z / 2, p[i + 1] - z / 2, z, z); }
       L.globalAlpha = 1;
       if (st.glow) { G.fillStyle = st.glowColor || st.color; const gz = Math.max(2, sz); for (let i = 0; i < p.length; i += 3) { G.globalAlpha = Math.min(1, st.glow * (st.alpha ?? 1) * (st.fade === false ? 1 : fogK(p[i + 2]))); G.fillRect(p[i] / 2 - gz / 2, p[i + 1] / 2 - gz / 2, gz, gz); } G.globalAlpha = 1; }
       continue;
@@ -183,7 +183,7 @@ export function flush() {
         if (any) { L.globalAlpha = (st.alpha ?? 1) * (band + 0.5) / 4; L.stroke(); }
       }
       L.globalAlpha = 1;
-      if (st.glow) { G.beginPath(); for (let i = 0; i < p.length; i += 5) { if (st.fade !== false && fogK(p[i + 4]) < 0.3) continue; G.moveTo(p[i] / 2, p[i + 1] / 2); G.lineTo(p[i + 2] / 2, p[i + 3] / 2); } G.globalAlpha = st.glow; G.strokeStyle = st.glowColor || st.stroke; G.lineWidth = Math.max(0.5, WS); G.stroke(); G.globalAlpha = 1; }
+      if (st.glow) { G.beginPath(); for (let i = 0; i < p.length; i += 5) { if (st.fade !== false && fogK(p[i + 4]) < 0.7) continue; G.moveTo(p[i] / 2, p[i + 1] / 2); G.lineTo(p[i + 2] / 2, p[i + 3] / 2); } G.globalAlpha = st.glow; G.strokeStyle = st.glowColor || st.stroke; G.lineWidth = Math.max(0.5, WS); G.stroke(); G.globalAlpha = 1; }
       continue;
     }
     if (a <= 0.003 && !st.fill) continue;

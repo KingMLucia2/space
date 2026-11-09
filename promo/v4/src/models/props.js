@@ -34,18 +34,18 @@ export class BaseStation {
     this.lids = [-1, 1].map((sd) => { const piv = new THREE.Group(); piv.position.set(sd * w / 2, h, 0); g.add(piv); const lid = mesh(geo('dkLid', () => rbox(w / 2, 0.12, d + 0.04, 0.04)), MW); lid.position.set(-sd * w / 4, 0.06, 0); piv.add(lid);
       const st = mesh(geo('dkLidS', () => rbox(0.06, 0.13, d - 0.2, 0.02)), M.orange); st.position.set(-sd * 0.15, 0.065, 0); piv.add(st); return { piv, sd }; });
     // 气象杆与警示灯
-    const mast = mesh(geo('dkMast', () => merged([[cyl(0.03, 0.04, 2.6, 10), [w / 2 + 0.35, 1.3, -d / 2 + 0.3]], [new THREE.SphereGeometry(0.06, 10, 8), [w / 2 + 0.35, 2.65, -d / 2 + 0.3]]])), M.chrome); g.add(mast);
-    this.cups = new THREE.Group(); this.cups.position.set(w / 2 + 0.35, 2.7, -d / 2 + 0.3); g.add(this.cups); for (let k = 0; k < 3; k++) { const a = k * 2.094; const arm = mesh(geo('dkCup', () => merged([[rbox(0.24, 0.015, 0.015, 0.004), [0.12, 0, 0]], [new THREE.SphereGeometry(0.035, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), [0.24, 0, 0], [Math.PI / 2, 0, 0]]])), M.white); arm.rotation.y = a; this.cups.add(arm); }
+    const mast = mesh(geo('dkMast', () => merged([[cyl(0.03, 0.04, 2.6, 10), [w / 2 - 0.3, 1.3, -d / 2 - 0.38]], [new THREE.SphereGeometry(0.06, 10, 8), [w / 2 - 0.3, 2.65, -d / 2 - 0.38]], [rbox(0.08, 0.06, 0.38, 0.02), [w / 2 - 0.3, 0.9, -d / 2 - 0.19]], [rbox(0.08, 0.06, 0.38, 0.02), [w / 2 - 0.3, 0.4, -d / 2 - 0.19]]])), M.chrome); g.add(mast); // 气象杆装在背面（舱盖翻开扫过的范围之外）
+    this.cups = new THREE.Group(); this.cups.position.set(w / 2 - 0.3, 2.7, -d / 2 - 0.38); g.add(this.cups); for (let k = 0; k < 3; k++) { const a = k * 2.094; const arm = mesh(geo('dkCup', () => merged([[rbox(0.24, 0.015, 0.015, 0.004), [0.12, 0, 0]], [new THREE.SphereGeometry(0.035, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), [0.24, 0, 0], [Math.PI / 2, 0, 0]]])), M.white); arm.rotation.y = a; this.cups.add(arm); }
     // 细节：深色底座、侧面检修门、控制屏、背面两根鞭状天线、检修踏步、线缆护管
     g.add(mesh(geo('dkPlinth', () => rbox(w + 0.12, 0.14, d + 0.12, 0.03)), M.black)); g.children[g.children.length - 1].position.y = 0.07;
     g.add(mesh(geo('dkDoor', () => merged([[rbox(0.03, 1.15, 0.95, 0.01), [w / 2 + 0.012, 0.85, 0.4]], [rbox(0.04, 0.05, 0.22, 0.01), [w / 2 + 0.04, 0.85, 0.05]]])), M.shell2));
     g.add(mesh(geo('dkDoorL', () => merged([[rbox(0.02, 1.2, 0.02, 0.005), [w / 2 + 0.02, 0.85, 0.89]], [rbox(0.02, 1.2, 0.02, 0.005), [w / 2 + 0.02, 0.85, -0.09]], [rbox(0.02, 0.02, 1.0, 0.005), [w / 2 + 0.02, 1.45, 0.4]], [rbox(0.02, 0.02, 1.0, 0.005), [w / 2 + 0.02, 0.25, 0.4]]])), M.dark));
     const scr = mesh(geo('dkScr', () => rbox(0.46, 0.26, 0.02, 0.01)), new THREE.MeshBasicMaterial({ color: '#7fdcff' }), false); scr.position.set(w / 2 - 0.55, 0.62, d / 2 + 0.012); g.add(scr);
     g.add(mesh(geo('dkScrF', () => rbox(0.56, 0.36, 0.02, 0.01)), M.black)); g.children[g.children.length - 1].position.set(w / 2 - 0.55, 0.62, d / 2 + 0.004);
-    g.add(mesh(geo('dkAnt', () => merged([[cyl(0.012, 0.02, 1.4, 8), [-w / 2 + 0.2, h + 0.7, -d / 2 + 0.2]], [cyl(0.012, 0.02, 1.0, 8), [-w / 2 + 0.45, h + 0.5, -d / 2 + 0.2]], [cyl(0.05, 0.05, 0.08, 10), [-w / 2 + 0.2, h + 0.04, -d / 2 + 0.2]]])), M.black));
+    g.add(mesh(geo('dkAnt', () => merged([[cyl(0.012, 0.02, 1.6, 8), [-w / 2 + 0.3, h + 0.3, -d / 2 - 0.12]], [cyl(0.012, 0.02, 1.2, 8), [-w / 2 + 0.55, h + 0.1, -d / 2 - 0.12]], [rbox(0.4, 0.1, 0.12, 0.02), [-w / 2 + 0.42, h - 0.45, -d / 2 - 0.08]]])), M.black)); // 鞭状天线装在背面上沿外侧
     g.add(mesh(geo('dkStep', () => merged([[rbox(0.5, 0.2, 0.9, 0.02), [w / 2 + 0.3, 0.1, -0.9]], [rbox(0.25, 0.2, 0.9, 0.02), [w / 2 + 0.17, 0.3, -0.9]]])), M.dark));
     g.add(mesh(geo('dkPipe', () => merged([[cyl(0.05, 0.05, 1.2, 10), [-0.6, 0.6, -d / 2 - 0.06]], [cyl(0.05, 0.05, 1.2, 10), [-0.42, 0.6, -d / 2 - 0.06]], [rbox(0.4, 0.06, 0.12, 0.02), [-0.51, 1.18, -d / 2 - 0.06]]])), M.dark));
-    this.beacon = mesh(geo('dkBeacon', () => new THREE.SphereGeometry(0.06, 12, 8)), new THREE.MeshBasicMaterial({ color: '#5fd4ff' }), false); this.beacon.position.set(-w / 2 + 0.1, h + 0.08, d / 2 - 0.3); g.add(this.beacon);
+    this.beacon = mesh(geo('dkBeacon', () => new THREE.SphereGeometry(0.06, 12, 8)), new THREE.MeshBasicMaterial({ color: '#5fd4ff' }), false); this.beacon.position.set(-w / 2 + 0.2, h - 0.12, d / 2 + 0.06); g.add(this.beacon); // 警示灯在正面上沿下方，不被舱盖压住
     this.beaconGlow = glowSprite('#5fd4ff', 0.6, 0.6, false); this.beaconGlow.position.copy(this.beacon.position); g.add(this.beaconGlow);
     dyn(g);
   }
@@ -53,7 +53,7 @@ export class BaseStation {
   update(pos, open, lift, t, lights = 1) {
     const g = this.g; g.visible = true; setPose(g, pos, DOCK.ry);
     this.plat.position.y = DOCK.platLow + (DOCK.platHigh - DOCK.platLow) * smooth(lift); this.plat.visible = open > 0.02 || lift > 0.02;
-    const a = smooth(open) * 2.6; for (const L of this.lids) L.piv.rotation.z = -L.sd * a * -1;
+    const a = smooth(open) * 2.6; for (const L of this.lids) L.piv.rotation.z = -L.sd * a; // 两扇舱盖绕外侧上沿铰链向上、向外翻开（原来方向反了，会翻进舱体）
     this.cups.rotation.y = t * 3.1; this.lightMat.color.set(lights > 0.5 ? '#7fe0ff' : '#5c6e78');
     const bl = lights * (Math.sin(t * 6) > 0.3 ? 1 : 0.25); this.beaconGlow.material.opacity = 0.7 * bl; this.beacon.material.color.set(bl > 0.5 ? '#7fe0ff' : '#3a6f85');
     return g;
@@ -228,7 +228,7 @@ export class Stretcher {
     this.lines = [0, 1, 2, 3].map(() => { const m = mesh(geo('stL', () => cyl(0.008, 0.008, 1, 6)), M.dark); g.add(m); return m; });
     dyn(g);
   }
-  update(pos, heading, roll = 0) { const g = this.g; g.visible = true; setPose(g, pos, heading, 0, roll); const ring = [0, 1.0, 0]; [[0.3, 0.25, 0.95], [-0.3, 0.25, 0.95], [0.3, 0.25, -0.95], [-0.3, 0.25, -0.95]].forEach((c, i) => span(this.lines[i], c, ring)); this.g.updateMatrixWorld(); return V(...ring).applyMatrix4(g.matrixWorld).toArray(); }
+  update(pos, heading, roll = 0, pitch = 0) { const g = this.g; g.visible = true; setPose(g, pos, heading, pitch, roll); const ring = [0, 1.0, 0]; [[0.3, 0.25, 0.95], [-0.3, 0.25, 0.95], [0.3, 0.25, -0.95], [-0.3, 0.25, -0.95]].forEach((c, i) => span(this.lines[i], c, ring)); this.g.updateMatrixWorld(); return V(...ring).applyMatrix4(g.matrixWorld).toArray(); }
 }
 export const STRETCHER = pool(() => new Stretcher());
 

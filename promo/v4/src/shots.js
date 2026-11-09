@@ -319,12 +319,13 @@ const SH = {
     const T = T0.s23 + t; const hd = 0.3; const go = easeIn(range(t, 5.4, 6.4)); const HP = [VICTIM[0] - 1.79 - Math.sin(hd) * go * 7, 21 + 0.15 * Math.sin(T * 1.1) + go * 1.5, VICTIM[2] + 0.136 - Math.cos(hd) * go * 7];
     const S = s23Ground(), ground = S.g, G = [VICTIM[0], ground, VICTIM[2]]; const hl = HELI.get(); const lift = smoother(range(t, 1.6, 5.3));
     const tipW = () => hl.world([1.78, 0.9, 0.4]); hl.update({ pos: HP, heading: hd, pitch: 0.1 * go, rotor: T * 30, speed: 1, door: 1, search: true, cable: 0.01 }); const tip = tipW();
-    const sway = 0.05 * Math.sin(T * 2.3) * lift; const sp = [lerp(G[0], tip[0], lift) + sway, lerp(ground, tip[1] - 1.1, lift), lerp(G[2], tip[2], lift)];
+    const sway = 0.05 * Math.sin(T * 2.3) * lift; const sp = [lerp(G[0], tip[0], lift) + sway, lerp(S.y0, tip[1] - 1.1, lift), lerp(G[2], tip[2], lift)];
     hl.update({ pos: HP, heading: hd, pitch: 0.1 * go, rotor: T * 30, speed: 1, door: 1, search: true, cable: Math.max(0.05, tip[1] - (sp[1] + 1.0)) });
     const camP = [G[0] + lerp(3.1, 4.6, lift), ground + 2.9 + (sp[1] - ground) * 0.85, G[2] + lerp(2.6, 4.1, lift)]; setLook('table'); setCam(camP, [sp[0], sp[1] + 0.35 + 1.4 * smooth(range(t, 3.4, 5.6)), sp[2]], 55); setShadow(G, 30); fog(30, 300); TILT.r = 0.45; TILT.k = 0.35;
-    STRETCHER.get().update(sp, lerp(2.42, hd + Math.PI, smooth(range(t, 1.9, 4.6))) + 0.06 * Math.sin(T * 1.7) * lift, 0.04 * Math.sin(T * 2.3) * lift); // 吊升时转到与机身平行，靠近舱门时不插进机身 drawHuman({ pos: [G[0] - 0.95, S.r, G[2] + 0.7], heading: 1.6, phase: 0, run: 0, armsUp: t < 1.8 }); // 队员站在担架左侧（不挡吊索），先举手示意起吊
-    setXray(VICTIM[0], VICTIM[2], 4.2, 1, 1.0); downwash([G[0], ground, G[2]], T, 1, 2.2); updateCity(T, { fogNear: 30, fogFar: 300 });
-    for (let i = 0; i < 2; i++) { const ph = (T * 0.7 + i * 0.5) % 1; fxRing([G[0], ground + 0.06, G[2]], 0.7 + ph * 2.4, t > 1.85 ? GREEN : COL.red, (1 - ph) * 0.85 * (1 - smooth(range(t, 4.5, 5.5))), 0.05); } // 地面脉冲环：担架离地时由红变绿
+    const lv = clamp((sp[1] - S.y0) / S.clear); STRETCHER.get().update(sp, lerp(S.yaw, hd + Math.PI, smooth(range(t, 1.9, 4.6))) + 0.06 * Math.sin(T * 1.7) * lift, S.roll * (1 - lv) + 0.04 * Math.sin(T * 2.3) * lift, S.pitch * (1 - lv)); /* 落地时顺着坡面躺平，吊离地面后再放平；吊升中转到与机身平行，停在舱门外 */ drawHuman({ pos: [G[0] - 0.95, S.r, G[2] + 0.7], heading: 1.6, phase: 0, run: 0, armsUp: t < 1.8 }); // 队员站在担架左侧（不挡吊索），先举手示意起吊
+    setXray(VICTIM[0], VICTIM[2], 4.2, 1, 1.0); updateCity(T, { fogNear: 30, fogFar: 300 });
+    for (let i = 0; i < 3; i++) { const ph = (T * 1.6 + i / 3) % 1; drapeRing(G[0], G[2], (0.5 + ph * 2.6) * 2.2, '#8a8378', (1 - ph) * 0.45, 0.11); } // 旋翼下洗气流的尘土环（贴着土丘表面）
+    for (let i = 0; i < 2; i++) { const ph = (T * 0.7 + i * 0.5) % 1; drapeRing(G[0], G[2], 0.7 + ph * 2.4, t > 1.85 ? GREEN : COL.red, (1 - ph) * 0.85 * (1 - smooth(range(t, 4.5, 5.5))), 0.06); } // 地面脉冲环：担架离地时由红变绿
     ui(T, { word: '担架吊运', sub: 'HOIST · 25 M · STRETCHER' }); label(project([sp[0], sp[1] + 0.4, sp[2]]), t > 2.2 ? '01 已救出' : '伤员固定', t > 2.2 ? 'RESCUED · 送往医院' : 'STRETCHER · 4 STRAPS', 170, -60, smooth(range(t, 0.8, 1.3)) * (1 - smooth(range(t, 5.4, 6.0))), t > 2.2 ? GREEN : COL.orange);
   } },
   s24: { transIn: { type: 'wipe', dur: 0.6 }, update(t) { // 结合体降落在基站平台上，平台开始下降
@@ -339,18 +340,13 @@ const SH = {
     ui(T, { word: '返航充电', sub: `CHARGING · ${Math.round(telemetry(T).battery)}%` }); label(project(dockAt(0, 0, 1.9)), '无线充电', `CHARGING · ${Math.round(telemetry(T).battery)}% · 防护舱关闭`, 160, -90, smooth(range(t, 2.4, 2.9)), GREEN);
   } },
   // ———— 五、全部救出与片尾 ————
-  s26: { transIn: { type: 'dissolve', dur: 0.8 }, update(t) { // 指挥中心：大屏上红点逐个变绿，镜头缓缓推向大屏
+  s26: { transIn: { type: 'dissolve', dur: 0.8 }, update(t) { // 指挥中心（参照第三版）：大屏上红点逐个变绿，镜头始终正对大屏，最后一个红点慢慢移到画面中心并缓缓推近
     const T = T0.s26 + t; const ds = (i) => (i === LAST ? 1 : 1 + clamp((t - greenAt(i)) / 0.35));
-    hallFrame(T, hallLerp(C26A, C26B, smooth(t / 8)), () => godScreen(T, { marks: ds, devices: false }), { view: '地图 MAP', word: '救援进行中', sub: `SAVED ${telemetry(T).saved} / 8`, full: 1 }, (c) => mapLabels(T, ds, 1, c));
-    hallLabel(smooth(range(t, 0.9, 1.7)) * (1 - smooth(range(t, 6.6, 7.6))));
+    zoomShot(T, t, ds, { view: '地图 MAP', word: '救援进行中', sub: `SAVED ${telemetry(T).saved} / 8`, full: 1 }, smooth(range(t, 0.9, 1.7)) * (1 - smooth(range(t, 5.4, 6.2))));
   } },
-  s27: { update(t, { POST }) { // 推进大屏回到上帝视角，再落到最后一个红点上方：红球铺满画面后变绿，成为纯绿
+  s27: { update(t, { POST }) { // 推到最后一个红点铺满画面，变绿，成为纯绿
     const T = T0.s27 + t; const turn = smooth(range(t, 3.5, 3.95)); const ds = (i) => (i === LAST ? 1 + turn : 2);
-    if (t < 1.8) { hallFrame(T, hallLerp(C26B, FILLP, smoother(t / 1.8)), () => godScreen(T, { marks: ds, devices: false }), { view: '地图 MAP', word: '最后一人', sub: 'SAVED 7 / 8', full: 1 - smooth(range(t, 0.45, 1.5)) }, (c) => mapLabels(T, ds, 1 - smooth(range(t, 0.6, 1.4)), c)); return; }
-    const L7 = CITY.survivors[LAST]; const k = smoother(range(t, 1.8, 3.7)), m = smooth(range(t, 1.8, 3.4)); const h = lerpLog(GOD.pos[1], 37.5, k), x = lerp(GOD.pos[0], L7[0], m), z = lerp(GOD.pos[2], L7[1], m);
-    setLook('table'); TILT.on = false; setCamYPR([x, h, z], 0, -Math.PI / 2, 0, GOD.fov); setShadow([x, 0, z], lerpLog(520, 60, k)); fogFor(h);
-    updateCity(T, { marks: ds, markH: 30, markS: 2.6, fogNear: FOG.near, fogFar: FOG.far });
-    ui(T, { view: '地图 MAP', word: turn > 0.5 ? '全部救出' : '最后一人', sub: turn > 0.5 ? '8 / 8 SAVED' : 'SAVED 7 / 8', alpha: 1 - smooth(range(t, 3.9, 4.5)) });
+    zoomShot(T, 8 + t, ds, { view: '地图 MAP', word: turn > 0.5 ? '全部救出' : '最后一人', sub: turn > 0.5 ? '8 / 8 SAVED' : 'SAVED 7 / 8', full: 1 }, 0);
     POST.flash = 0.18 * Math.sin(Math.PI * range(t, 3.5, 3.85));
     if (HUD) { const f = smooth(range(t, 4.25, 5.0)); if (f > 0) { HUD.save(); HUD.globalAlpha = f; HUD.fillStyle = GREEN; HUD.fillRect(0, 0, W, H); HUD.restore(); } }
   } },
@@ -364,13 +360,26 @@ const SH = {
 function mapView(T, h, x, z) { setLook('table'); TILT.on = false; setCamYPR([x, h, z], 0, -Math.PI / 2, 0, GOD.fov); setShadow([x, 0, z], Math.min(900, h * 1.6)); fog(Math.max(400, h * 1.5), Math.max(2600, h * 6)); }
 function mapLabels(T, ds, a, c = HUD) { if (!c || a <= 0.01) return; CITY.survivors.forEach(([x, z], i) => { const s = ds(i); if (s <= 0) return; const p = project([x, 30, z]); if (!p) return; const g = s >= 1.5; c.save(); c.globalAlpha = a * clamp(s);
   c.fillStyle = g ? GREEN : COL.red; c.beginPath(); c.roundRect(p.x + 18, p.y - 30, 50, 22, 4); c.fill(); c.font = `700 13px ${MONO}`; c.fillStyle = '#fff'; c.textAlign = 'center'; c.fillText(String(i + 1).padStart(2, '0'), p.x + 43, p.y - 14); c.restore(); }); }
-let S23G = null; const s23Ground = () => S23G || (S23G = { g: surfaceY(VICTIM[0], VICTIM[2]), r: surfaceY(VICTIM[0] - 0.95, VICTIM[2] + 0.7) }); // 土丘表面高度（担架、队员）
+// 救援现场的土丘表面高度：在被困者周围 14×14 米、0.25 米网格上射线求交一次，之后双线性插值（担架贴坡、队员站位、地面波纹环都按它走）
+let SITE = null;
+function siteY(x, z) { if (!SITE) { const n = 57, st = 0.25, x0 = VICTIM[0] - 7, z0 = VICTIM[2] - 7, h = new Float32Array(n * n); for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) h[j * n + i] = surfaceY(x0 + i * st, z0 + j * st); SITE = { n, st, x0, z0, h }; }
+  const { n, st, x0, z0, h } = SITE; const fx = clamp((x - x0) / st, 0, n - 1.001), fz = clamp((z - z0) / st, 0, n - 1.001); const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
+  return lerp(lerp(h[j * n + i], h[j * n + i + 1], u), lerp(h[(j + 1) * n + i], h[(j + 1) * n + i + 1], u), v); }
+let S23G = null; const s23Ground = () => S23G || (S23G = (() => { const yaw = 2.42, F = [Math.sin(yaw), Math.cos(yaw)], R = [Math.cos(yaw), -Math.sin(yaw)]; const at = (f, r) => siteY(VICTIM[0] + F[0] * f + R[0] * r, VICTIM[2] + F[1] * f + R[1] * r);
+  const hH = at(0.95, 0), hF = at(-0.95, 0), hL = at(0, -0.3), hR = at(0, 0.3), hC = at(0, 0); // 担架头、脚、两侧、中心处的坡面高度
+  return { g: hC, yaw, y0: Math.max((hH + hF) / 2, hC) + 0.05, pitch: -Math.atan2(hH - hF, 1.9), roll: Math.atan2(hR - hL, 0.6), clear: Math.abs(hH - hF) / 2 + 0.25, r: siteY(VICTIM[0] - 0.95, VICTIM[2] + 0.7) }; })());
+// 贴地圆环：沿土丘表面起伏（平面圆环在斜坡上会悬空或埋进去）
+const DRAPE = pool(() => { const N = 96, g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array((N + 1) * 2 * 3), 3)); const idx = []; for (let k = 0; k < N; k++) { const a = k * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } g.setIndex(idx);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false })); m.frustumCulled = false; m.renderOrder = 3; m.userData.N = N; return dyn(m); });
+function drapeRing(cx, cz, r, color, opacity, width = 0.05) { if (opacity <= 0.005 || r <= 0) return; const m = DRAPE.get(); m.visible = true; const P = m.geometry.attributes.position, N = m.userData.N; const r0 = Math.max(0, r - width);
+  for (let k = 0; k <= N; k++) { const a = k / N * Math.PI * 2, c = Math.cos(a), s2 = Math.sin(a); for (const [q, rr] of [[0, r0], [1, r]]) { const x = cx + c * rr, z = cz + s2 * rr; P.setXYZ(k * 2 + q, x, siteY(x, z) + 0.05, z); } }
+  P.needsUpdate = true; m.material.color.set(color); m.material.opacity = opacity; }
 const greenAt = (i) => (i === 0 ? -10 : (GREEN_ORDER.indexOf(i) < 0 ? 1e9 : 0.9 + GREEN_ORDER.indexOf(i) * 1.0));
 
 // —— 指挥中心：大屏画面 = 上帝视角（三维）＋监控界面；每帧先单独渲染一遍画到 SCR 画布贴到大屏上，再清场渲染大厅 ——
 // 镜头在大厅里看向主屏中心；位于 FILLP（正对、距离 FILL_D）时主屏恰好铺满画面，与直接渲染的上帝视角逐像素一致，进出无缝。
 const SCR = mkCanvas(W, H), SCX = SCR.getContext('2d'); const SCR_TEX = new THREE.CanvasTexture(SCR); SCR_TEX.colorSpace = THREE.SRGBColorSpace; SCR_TEX.anisotropy = 8;
-const SCC = [0, HALL.SY, HALL.SZ], FILLP = [0, HALL.SY, HALL.SZ + HALL.FILL_D], END16 = [1.4, 2.25, HALL.SZ + 19.5], C26A = [-1.9, 2.05, HALL.SZ + 21.5], C26B = [-0.55, 2.85, HALL.SZ + 12.5];
+const SCC = [0, HALL.SY, HALL.SZ], FILLP = [0, HALL.SY, HALL.SZ + HALL.FILL_D], END16 = [1.4, 2.25, HALL.SZ + 19.5];
 // 两点之间推拉：距离按对数插值（离屏越近越慢），横向与高度平滑过渡
 const hallLerp = (A, B, k) => { const dA = A[2] - HALL.SZ, dB = B[2] - HALL.SZ; return [lerp(A[0], B[0], k), lerp(A[1], B[1], k), HALL.SZ + lerpLog(dA, dB, k)]; };
 // 大屏上的上帝视角（与 s15 结尾、s17/s27 推回后的直接画面同一取景与光照）
@@ -381,10 +390,33 @@ function hallFrame(T, cp, god, uiO, extra, o = {}) {
   god(); renderGL(); SCX.setTransform(1, 0, 0, 1, 0, 0); SCX.globalAlpha = 1; SCX.drawImage(glCanvas, 0, 0); if (extra) extra(SCX);
   drawUI(SCX, { T, tel: telemetry(T), cursor: null, ...uiO }); SCR_TEX.needsUpdate = true;
   hideDyn(); cam.near = 0.05; cam.clearViewOffset(); setLook('studio'); TILT.on = false; fog(60, 400); CS.on = true; CS.size = 30; CS.center = [HALL.O[0], HALL.O[2] + 1.5]; CS.y = 0.03; CS.height = 3; CS.opacity = 0.4;
-  const hl = HALLS.get(); hl.setScreen(SCR_TEX); hl.update(T, SCR, o); setCam(hallPt(cp), hallPt(o.look || SCC), HALL.FOV);
+  const hl = HALLS.get(); hl.setScreen(SCR_TEX); hl.update(T, SCR, o); if (o.straight) setCamYPR(hallPt(cp), 0, 0, 0, HALL.FOV); else setCam(hallPt(cp), hallPt(o.look || SCC), HALL.FOV);
 }
 const hallLabel = (a) => label(project(hallPt([-HALL.SW / 2, HALL.SY + HALL.SH / 2, HALL.SZ])), '指挥中心 · 实时态势', 'COMMAND CENTER · LIVE', -60, -70, a);
 function selRing(c, T, a) { if (a <= 0.01) return; const hp = project(DEVICES.hex); if (!hp) return; c.save(); c.globalAlpha = a; c.strokeStyle = COL.orange; c.lineWidth = 2; c.beginPath(); c.arc(hp.x, hp.y, 26 + 6 * Math.sin(T * 5), 0, 7); c.stroke(); c.restore(); callout(c, hp, '六足机器人 · 选中', 'HEXAPOD 01 · REJOIN', 160, -90, a); }
+
+// —— s26/s27：参照第三版——镜头始终正对大屏（只平移、不转向），最后一个红点从屏上原位置慢慢移到画面中心，同时按 u³ 不断放大，直到铺满画面变绿 ——
+// 大屏像素 → 画面像素是一个缩放＋平移（s, x0, y0）；大屏铺满画面后改为直接渲染上帝视角的同一块区域（相机视锥偏移），画面保持清晰
+const FRH = (H / 2) / Math.tan(THREE.MathUtils.degToRad(HALL.FOV / 2));
+function screenView(cp) { const d = cp[2] - HALL.SZ; return { s: HALL.SW * FRH / (d * W), x0: W / 2 - (HALL.SW / 2 + cp[0]) * FRH / d, y0: H / 2 - (HALL.SY - cp[1] + HALL.SH / 2) * FRH / d, d }; }
+function camForScreen(sx, sy, s, X, Y) { const d = HALL.SW * FRH / (s * W); const px = (sx / W - 0.5) * HALL.SW, py = HALL.SY - (sy / H - 0.5) * HALL.SH; return [px - (X - W / 2) * d / FRH, py + (Y - H / 2) * d / FRH, HALL.SZ + d]; }
+let LASTP = null; const lastPx = () => LASTP || (LASTP = (() => { const L = CITY.survivors[LAST]; setCamYPR(GOD.pos, 0, -Math.PI / 2, 0, GOD.fov); const p = project([L[0], 30, L[1]]); return [p.x, p.y]; })()); // 最后一个红点（光柱顶端的球）在大屏上的像素位置
+const CP26 = [-0.6, 2.4, HALL.SZ + 16], SFIN = 130;
+function zoom26(tau) { const v0 = screenView(CP26), D = lastPx(); const X0 = v0.x0 + v0.s * D[0], Y0 = v0.y0 + v0.s * D[1]; const u = clamp(tau / 12.2); const s2 = Math.exp(Math.log(v0.s) + (Math.log(SFIN) - Math.log(v0.s)) * u * u * u); const k = smooth(clamp(tau / 9));
+  const cp = camForScreen(D[0], D[1], s2, lerp(X0, W / 2, k), lerp(Y0, H / 2, k)); return { cp, ...screenView(cp) }; }
+const covered = (z) => z.x0 <= 0 && z.y0 <= 0 && z.x0 + W * z.s >= W && z.y0 + H * z.s >= H; // 大屏已经盖满整个画面
+const UIC = mkCanvas(W, H), UICX = UIC.getContext('2d');
+function zoomShot(T, tau, ds, uiO, hallA) {
+  const z = zoom26(tau); const labA = 1 - smooth((z.s - 0.9) / 0.6);
+  if (!covered(z)) { hallFrame(T, z.cp, () => godScreen(T, { marks: ds, devices: false }), uiO, (c) => mapLabels(T, ds, labA, c), { straight: true }); hallLabel(hallA); return z; }
+  setLook('table'); TILT.on = false; setCamYPR(GOD.pos, 0, -Math.PI / 2, 0, GOD.fov);
+  UICX.setTransform(1, 0, 0, 1, 0, 0); UICX.clearRect(0, 0, W, H); mapLabels(T, ds, labA, UICX); drawUI(UICX, { T, tel: telemetry(T), cursor: null, ...uiO }); // 界面层先按大屏像素画好
+  cam.setViewOffset(W, H, -z.x0 / z.s, -z.y0 / z.s, W / z.s, H / z.s);
+  const cx = (-z.x0 + W / 2) / z.s, cy = (-z.y0 + H / 2) / z.s, hh = GOD.pos[1] * Math.tan(THREE.MathUtils.degToRad(GOD.fov / 2)); const wx = GOD.pos[0] + (cx / W - 0.5) * 2 * hh * W / H, wz = GOD.pos[2] + (cy / H - 0.5) * 2 * hh;
+  setShadow([wx, 0, wz], clamp(2.6 * hh * W / H / z.s, 30, 520)); fog(600, 2600); updateCity(T, { marks: ds, markH: 30, markS: 2.6, fogNear: 600, fogFar: 2600 });
+  if (HUD) { const a = 1 - smooth((z.s - 1.5) / 1.6); if (a > 0.01) { HUD.save(); HUD.globalAlpha = a; HUD.drawImage(UIC, z.x0, z.y0, W * z.s, H * z.s); HUD.restore(); } }
+  return z;
+}
 // —— s12~s15 相机（与第三版相同） ——
 const S12_OFF = [2.25, 0.5, 0.8], S13_OFF = [0.12, 1.3, 2.7];
 function searchCam(T) { const b = walkBody(T); if (T < T0.s13) return { p: [b.x + S12_OFF[0], S12_OFF[1], b.z + S12_OFF[2]], look: [b.x, 0.14, b.z - 0.2], f: 40 };

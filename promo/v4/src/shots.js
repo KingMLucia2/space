@@ -139,10 +139,11 @@ function telemetry(T) {
   const alt = T < T0.s06 ? 0 : T < T0.s08 ? lerp(0, 35, smooth(range(T, T0.s06, T0.s07))) : T < T0.s10 ? lerp(35, 0.6, smooth(range(T, T0.s08, T0.s08 + 3))) : T < T0.s18 ? lerp(0.6, 25, smooth(range(T, T0.s10, T0.s11))) : T < T0.s20 ? lerp(25, 2.8, smooth(range(T, T0.s18, T0.s19))) : T < T0.s24 ? lerp(2.8, 40, smooth(range(T, T0.s20, T0.s21))) : lerp(40, 0, smooth(range(T, T0.s24, T0.s24 + 2.6)));
   const found = T < T0.s14 + 0.6 ? 0 : T < T0.s15 + 5.0 ? 1 : Math.min(8, 1 + DOT_T.filter((d, i) => i > 0 && T - T0.s15 > d).length);
   const saved = T < T0.s23 + 2.0 ? 0 : T < T0.s26 ? 1 : Math.min(8, 1 + GREEN_ORDER.filter((i, k) => T - T0.s26 > 0.9 + k * 1.0 + 0.2).length + (T > T0.s27 + 3.6 ? 1 : 0));
+  const savedIds = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => (i === 0 ? T >= T0.s23 + 2.0 : i === LAST ? T > T0.s27 + 3.6 : T >= T0.s26 && T - T0.s26 > 0.9 + GREEN_ORDER.indexOf(i) * 1.0 + 0.2)); // 每个被困者各自的获救状态：卡片上的编号格与地图上的编号一一对应（救援顺序不是 01→08）
   const note = st === 0 ? '待命 · 等待出发指令' : found === 0 ? (st >= 3 ? '扫描中 · 可疑区域 A' : '待命 · 等待探测') : saved === 0 ? (found === 1 ? '01 · 埋深 1.5 m · 心率 92' : `${found} 处坐标已回传指挥中心`) : saved < 8 ? `已救出 ${saved} 人 · 救援进行中` : '全部救出 · 任务完成';
   return { battery: bat, draw: 0.3 + 2.1 * spin, cell: 3.7 + 0.25 * bat / 100, temp: 31 + 9 * spin, rpm, thrust: Math.round(46 * spin), legs, legState: walking ? 'WALKING' : standing ? (st === 4 ? 'SCANNING' : 'HOLDING') : 'FOLDED', hotLeg: 1,
     alt, vs: fly ? 0.4 * Math.sin(T * 0.7) : 0, pitch: fly ? -2 * Math.sin(T * 0.3) : 0, roll: fly ? 0.6 * Math.sin(T * 0.45) : 0, speed: fly ? (st === 1 || st === 7 ? 18 : 2.4) : 0, hdg: 330 + 20 * Math.sin(T * 0.05),
-    found, saved, lifeNote: note, subs: SUBS(st, T), subHot: st === 2 || st === 6 ? 2 : st === 3 ? 0 : st === 4 ? 1 : st === 5 ? 3 : st === 8 ? 4 : -1 };
+    found, saved, savedIds, lifeNote: note, subs: SUBS(st, T), subHot: st === 2 || st === 6 ? 2 : st === 3 ? 0 : st === 4 ? 1 : st === 5 ? 3 : st === 8 ? 4 : -1 };
 }
 // 光标：每次阶段切换前移到下一个标签上点击
 function cursorAt(T) {

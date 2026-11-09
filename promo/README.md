@@ -81,6 +81,31 @@ node v2/render.mjs --shots cover --still 0 --png      # 封面 → out/v2/stills
 
 封面构图参数在 `shots.js` 的 `COVER_VIEW`（机位、六足机器人与无人机的距离、悬停高度、红点位置等）。不指定 `--shots` 渲染全片时会跳过封面。
 
+## 第四版（three.js 产品拆解仿真器风格，`v4/`）
+
+用户要求用 three.js 重构整个项目，画风参考两段“产品拆解仿真器”视频：暖白棚拍、白色亮面外壳＋黑色机械件＋橙色点缀、拆解爆炸图配引线标注，整幅画面是一个任务仿真网页界面。沿用第三版的故事、旁白和时间轴（s01~s29，146.4 秒），片尾字幕之后接 6 秒封面镜头 s30，全片 152.4 秒。设计说明见 `v4/DESIGN.md`。
+
+| 路径 | 内容 |
+| --- | --- |
+| `v4/src/engine.js` | 渲染器（物理材质、环境光照、太阳投影或接触阴影、移轴，可选 GTAO）、与第三版一致的相机接口、每帧对象池 |
+| `v4/src/models/hexapod.js` | 六足机器人：黑色铝板桁架腿＋各关节 20 kg 舵机、白色机身、可翻起的生命探测雷达面板、逆运动学步态 |
+| `v4/src/models/hexacopter.js` | 重载六旋翼：折叠臂与锁紧环、电调舱、带散热鳍片的电机、折叠桨、对接导向锥与锁扣、云台、起落架 |
+| `v4/src/models/city.js`、`cityData.js` | 白模灾区沙盘（布局沿用第三版）：楼体生长、地震后隆起的瓦砾、透视抖动、火光烟柱、被困者标记 |
+| `v4/src/models/props.js` | 基站、救援车、直升机、人物、担架、机场、瓦砾里的手机、被困者热成像点云、片尾的三种载荷 |
+| `v4/src/ui.js` | 任务仿真仪表盘：顶栏、任务阶段标签、左右数据卡、任务日志与计时、鼠标 |
+| `v4/src/shots.js` | 30 个镜头（s30 是封面镜头）和不进成片的 `cover` 镜头 |
+| `audio/v4_score.py`、`audio/v4_mix.py` | 第三版配乐与混音延长到 152.4 秒，加上封面段的钟声与收束和弦；旁白沿用第三版 |
+
+```bash
+node v4/render.mjs --shots s14,s23 --still 0,45       # 检查帧 → out/v4/stills/
+node v4/render.mjs --shots s01,s02 --encode           # 渲染镜头 → out/v4/frames/、out/v4/clips/
+(cd audio && python3 v4_score.py && python3 v4_mix.py)   # → audio/build/v4_mix.wav、v4_subtitles.srt
+v4/assemble.sh                                        # → out/宣传片_v4.mp4
+node v4/render.mjs --shots cover --still 0 --png      # 封面 → out/v4/stills/cover_0000.png（成品另存为 out/宣传片_v4_封面.png/.jpg）
+```
+
+渲染走 SwiftShader 软件 WebGL：棚拍镜头约 1 秒/帧，城区远景 2~5 秒/帧，整片 4572 帧分 3 个进程并行约一小时。页面 URL 参数：`msaa`（多重采样数，默认 4）、`ao=1`（开 GTAO，每帧多约 1 秒）、`hf=1`（半浮点渲染目标，较慢）。
+
 ## 暂定内容
 
-项目名称“六合”和口号“上天入地，不放弃每一个生命”是暂定的。改名称时，需要改 `audio/lines.py` 里的旁白、`src/fx/hud.js` 的片尾字幕，然后重新生成旁白并重渲 `s26`。第三版还要改 `v2/src/hud.js` 的 `titleCard`、`v2/src/shots.js` 片尾和封面里的文字，重渲 `s28`、`s29`、`cover`。
+项目名称“六合”和口号“上天入地，不放弃每一个生命”是暂定的。改名称时，需要改 `audio/lines.py` 里的旁白、`src/fx/hud.js` 的片尾字幕，然后重新生成旁白并重渲 `s26`。第三版还要改 `v2/src/hud.js` 的 `titleCard`、`v2/src/shots.js` 片尾和封面里的文字，重渲 `s28`、`s29`、`cover`。第四版要改 `v4/src/ui.js` 顶栏和 `v4/src/shots.js` 里片名卡、片尾、封面的文字（无人机机身印字在 `v4/src/models/hexacopter.js`），重渲 `s28`~`s30` 和 `cover`。

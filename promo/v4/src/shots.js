@@ -176,12 +176,12 @@ function debrisFill(t, Q) { return (geom) => { const C = cityData(); const P = g
 // —— 镜头 ——
 const SH = {
   // ———— 一、灾情 ————
-  s01: { update(t) { // 仪表盘开机；白模城市从沙盘上依次长出 → 震中地震波扩散 → 楼体坍塌、扬尘、起火
+  s01: { update(t) { // 仪表盘开机；城市模型从沙盘上依次长出 → 震中地震波扩散 → 楼体坍塌、扬尘、起火
     const T = T0.s01 + t; const k = smoother(t / 7); const qk = smooth(range(t, TQ - 0.1, TQ + 0.15)) * (1 - smooth(range(t, TQ + 1.2, TQ + 3.2))); const sh = shake(t, 1.0 * qk, 3.2, 2);
     setLook('table'); setCam(add(vl([270, 175, 250], [196, 78, 150], k), [sh.x, sh.y, sh.z]), vl([-25, 0, -35], [-18, 4, -28], k), 38); setShadow([-10, 0, -20], 430); fog(260, 1300); TILT.r = 0.45; TILT.k = 0.9;
     const Q = quakeFn(t); updateCity(T, { quake: Q, growT: t, quakeT: t - TQ, fire: 1, smoke: smooth(range(t, TQ + 0.5, TQ + 2.5)), debris: t > TQ ? debrisFill(t, Q) : null, fogNear: 260, fogFar: 1300 });
     if (t > TQ) { const R = (t - TQ) * QV; const a = 1 - smooth(range(t, TQ + 1.8, TQ + 3.0)); shockwave(QX, QZ, R, a); shockwave(QX, QZ, R * 0.62, a * 0.55, 6, 34); const fk = 1 - smooth(range(t, TQ, TQ + 0.9)); if (fk > 0.01) { const f = QFLASH.get(); f.visible = true; f.position.set(QX, 14, QZ); const sz = 50 + 220 * (t - TQ); f.scale.set(sz, sz, 1); f.material.opacity = 0.8 * fk; } } // 主波＋紧随的次波＋震中闪光
-    ui(T, { boot: smooth(range(t, 0.15, 2.8)), view: '沙盘 TABLE', word: t < TQ ? '城区白模' : '强震 M7.2', sub: t < TQ ? 'SAND TABLE · 1 : 500' : 'EPICENTER · 42 BUILDINGS DOWN' });
+    ui(T, { boot: smooth(range(t, 0.15, 2.8)), view: '沙盘 TABLE', word: t < TQ ? '城区沙盘' : '强震 M7.2', sub: t < TQ ? 'SAND TABLE · 1 : 500' : 'EPICENTER · 42 BUILDINGS DOWN' });
     if (t > TQ + 0.6) label(project([QX, 1, QZ]), '震中', 'EPICENTER · M7.2 · 10 KM', -150, -90, smooth(range(t, TQ + 0.6, TQ + 1.2)) * (1 - smooth(range(t, 6.4, 7))));
   } },
   s02: { transIn: { type: 'dissolve', dur: 0.8 }, update(t) { // 被截断的公路：救援车队被塌方堵住，警灯闪烁

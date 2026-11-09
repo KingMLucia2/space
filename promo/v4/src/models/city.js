@@ -17,7 +17,13 @@ const TILE = 60;
 export const ANIM = { uGrowT: { value: 999 }, uQT: { value: 999 }, uQc: { value: new THREE.Vector2(-40, -60) } };
 const GROW_V = `float dly = 0.2 + 1.9 * clamp(length(vec2(transformed.x, transformed.z + 20.0)) / 330.0, 0.0, 1.0); transformed.y *= smoothstep(dly, dly + 0.9, uGrowT);`;
 const QUAKE_V = `float dq = length(transformed.xz - uQc) / 150.0; float qk = smoothstep(0.35, 1.0, clamp((uQT - dq) / 1.3, 0.0, 1.0)); transformed.y = mix(0.0, transformed.y, qk); if (qk < 0.01) transformed = vec3(0.0, -2000.0, 0.0);`;
-function animated(m, code) { const prev = m.onBeforeCompile; m.onBeforeCompile = (sh) => { if (prev) prev(sh); Object.assign(sh.uniforms, ANIM); sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uGrowT; uniform float uQT; uniform vec2 uQc;').replace('#include <begin_vertex>', '#include <begin_vertex>\n' + code); }; return m; }
+// 注意：three.js 默认用 onBeforeCompile 的源码文本当着色器缓存键，所有 animated() 材质的文本相同，会被并成同一个程序
+// （原来瓦砾土丘、残墙、街道细节都错用了楼体的“生长＋窗格”着色器），所以按“内层键＋动画代码”给每种材质单独的缓存键；
+// 同时配一个做同样顶点动画的深度材质给阴影用，否则还没长出来、还没隆起的物体会先投下阴影。
+function animated(m, code) { const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey();
+  const inject = (sh) => { Object.assign(sh.uniforms, ANIM); sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uGrowT; uniform float uQT; uniform vec2 uQc;').replace('#include <begin_vertex>', '#include <begin_vertex>\n' + code); };
+  m.onBeforeCompile = (sh) => { if (prev) prev(sh); inject(sh); }; m.customProgramCacheKey = () => prevKey + '|anim|' + code;
+  const d = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }); d.onBeforeCompile = inject; d.customProgramCacheKey = () => 'animDepth|' + code; m.userData.depthMat = d; return m; }
 // 白模材质：楼体带窗格（世界坐标），其余为哑光白/浅灰
 function windowMat(base, grow = true) {
   const m = new THREE.MeshStandardMaterial({ color: base, roughness: 0.88, vertexColors: base === '#ffffff' });
@@ -44,7 +50,7 @@ const PAL = PAL_HEX.map((h) => { const c = new THREE.Color(h); return [c.r, c.g,
 const hashXZ = (x, z) => { const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return s - Math.floor(s); };
 export const bldColor = (x, z) => PAL[Math.floor(hashXZ(x, z) * PAL.length)];
 const colorize = (g, col) => { const n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) a.set(col, i * 3); g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
-const MAT = { bld: windowMat('#ffffff'), wall: new THREE.MeshStandardMaterial({ color: '#f2f0ec', roughness: 0.9, vertexColors: true }), rubble: animated(xrayable(new THREE.MeshStandardMaterial({ color: '#d6d0c6', roughness: 0.95, vertexColors: true, name: 'rubble' })), QUAKE_V),
+const MAT = { bld: windowMat('#ffffff'), wall: animated(new THREE.MeshStandardMaterial({ color: '#f2f0ec', roughness: 0.9, vertexColors: true }), QUAKE_V), /* 倒塌楼留下的残墙：跟瓦砾一起在楼塌下时隆起，开场长楼之前不出现 */ rubble: animated(xrayable(new THREE.MeshStandardMaterial({ color: '#d6d0c6', roughness: 0.95, vertexColors: true, name: 'rubble' })), QUAKE_V),
   mound: animated(new THREE.MeshStandardMaterial({ color: '#d6d0c6', roughness: 0.95, vertexColors: true }), QUAKE_V),
   slab: animated(xrayable(new THREE.MeshStandardMaterial({ color: '#d9d4cc', roughness: 0.9, name: 'slab' })), QUAKE_V), rebar: animated(xrayable(new THREE.MeshStandardMaterial({ color: '#8a5a3c', roughness: 0.7, metalness: 0.3, name: 'rebar' })), QUAKE_V), car: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6, vertexColors: true }),
   tree: new THREE.MeshStandardMaterial({ color: '#dfe3d6', roughness: 0.9 }), crack: animated(new THREE.MeshBasicMaterial({ color: '#7d7469' }), QUAKE_V) };
@@ -61,7 +67,7 @@ export function buildCityMeshes() {
   // 楼体
   for (const b of C.B) {
     const pos = [b.x, b.h / 2, b.z]; const lean = new THREE.Matrix4().compose(V(b.x, 0, b.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(b.rx || 0, b.ry || 0, b.rz || 0, 'YXZ')), V(1, 1, 1));
-    const g = BOX.clone().toNonIndexed(); g.deleteAttribute('uv'); g.applyMatrix4(new THREE.Matrix4().makeScale(b.w, b.h, b.d)); g.applyMatrix4(new THREE.Matrix4().makeTranslation(0, b.h / 2, 0)); g.applyMatrix4(lean); const bc = b.col || (b.col = bldColor(b.x, b.z)); colorize(g, b.wall ? bc.map((v) => v * 0.93) : bc); T.add(b.wall ? MAT.wall : MAT.bld, b.x, b.z, g); void pos;
+    const g = BOX.clone().toNonIndexed(); g.deleteAttribute('uv'); g.applyMatrix4(new THREE.Matrix4().makeScale(b.w, b.h, b.d)); g.applyMatrix4(new THREE.Matrix4().makeTranslation(0, b.h / 2, 0)); g.applyMatrix4(lean); const gp = b.wall ? C.ghosts.find((q) => Math.abs(b.x - q.x) <= q.w / 2 + 0.5 && Math.abs(b.z - q.z) <= q.d / 2 + 0.5) : null; const bc = b.col || (b.col = gp ? bldColor(gp.x, gp.z) : bldColor(b.x, b.z)); /* 残墙取原楼的颜色 */ colorize(g, b.wall ? bc.map((v) => v * 0.93) : bc); T.add(b.wall ? MAT.wall : MAT.bld, b.x, b.z, g); void pos;
     if (b.broken) for (const k of b.broken) { const gk = BOX.clone().toNonIndexed(); gk.deleteAttribute('uv'); gk.applyMatrix4(new THREE.Matrix4().makeScale(k.w, k.h, k.d)); gk.applyMatrix4(new THREE.Matrix4().makeTranslation(0, k.h / 2, 0)); gk.applyMatrix4(new THREE.Matrix4().compose(V(k.ox, b.h, k.oz), new THREE.Quaternion().setFromEuler(new THREE.Euler(k.rx || 0, 0, k.rz || 0, 'YXZ')), V(1, 1, 1))); gk.applyMatrix4(lean); colorize(gk, b.col); T.add(MAT.bld, b.x, b.z, gk); }
   }
   // 瓦砾堆：不规则土丘＋碎块（灰度略有变化）
@@ -106,6 +112,7 @@ export function buildCityMeshes() {
   const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.Float32BufferAttribute(rp, 3)); rg.setAttribute('normal', new THREE.Float32BufferAttribute(rn, 3)); const road = new THREE.Mesh(rg, new THREE.MeshStandardMaterial({ color: '#d4cfc6', roughness: 0.95 })); road.receiveShadow = true; ROOT.add(road);
   const dash = []; for (let x = 209; x < 1100; x += 8) { if (Math.abs(x - CITY.roadBlockX) < 22) continue; dash.push(bake(BOX, [x + 1.7, terrainHeight(x + 1.7, 0) + 0.1, 0], [0, 0, 0], [3.4, 0.02, 0.18])); }
   ROOT.add(new THREE.Mesh(mergeGeometries(dash), new THREE.MeshBasicMaterial({ color: '#ffffff' })));
+  ROOT.traverse((o) => { if (o.isMesh && o.material && o.material.userData && o.material.userData.depthMat) o.customDepthMaterial = o.material.userData.depthMat; }); // 阴影跟着生长/隆起动画走
   buildDynamic(); return ROOT;
 }
 // 地表高度（瓦砾土丘表面，没有土丘处为地面）：救援镜头里让担架和队员落在土丘上

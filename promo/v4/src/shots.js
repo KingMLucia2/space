@@ -2,7 +2,7 @@
 // 所有动画都是全片绝对时间 T 的函数；同一地点相邻镜头共用连续的相机路径；界面层（任务仿真仪表盘）随任务阶段变化。
 import { THREE, scene, W, H, COL, setCam, setCamYPR, setShadow, CS, setLook, FOG, TILT, project, cam, mkCanvas, dyn, pool, renderGL, glCanvas, hideDyn } from './engine.js';
 import { HALLS, HALL, hallPt } from './models/hall.js';
-import { M, mesh, glowSprite } from './mats.js';
+import { M, mesh, glowSprite, span } from './mats.js';
 import { drawDrone, rotorSpin, DRONE } from './models/hexacopter.js';
 import { drawHexapod, standFeet, gaitFeet, HEX } from './models/hexapod.js';
 import { updateCity, CITY, terrainHeight, cityData, setXray, surfaceY } from './models/city.js';
@@ -50,7 +50,7 @@ const dockAt = (f, s, up) => add(add(add(CITY.dock, sc(DF, f)), sc(DS, s)), [0, 
 const lightT = (T) => smooth(range(T, T0.s04 + 0.3, T0.s04 + 0.7)), openT = (T) => smooth(range(T, T0.s04 + 0.7, T0.s04 + 2.9)), liftT = (T) => smooth(range(T, T0.s06, T0.s06 + 1.4));
 const DEVICES = { hex: [REST.x, 0.24, REST.z], drone: [-30, 25, 20] };
 const HOVER = [REST.x, 2.8, REST.z];
-const GOD = { pos: [0, 380, -6], fov: 40 };
+const GOD = { pos: [0, 505, -7], fov: 40 }; // 拉高到 505 米：8 个被困者红点全部落在大屏完整界面的空白区内，不被卡片挡住
 const LAST = 7, GREEN_ORDER = [6, 4, 3, 2, 1, 5];
 const DOT_T = [0, 5.02, 5.14, 5.26, 5.38, 5.5, 5.62, 5.74];
 const GREEN = '#1fa968';
@@ -68,6 +68,19 @@ function fxLine(pts, color, opacity = 1, dash = null, progress = 1) { if (opacit
   l.geometry.setDrawRange(0, n); P.needsUpdate = true; l.computeLineDistances(); l.material.color.set(color); l.material.opacity = opacity; l.material.dashSize = dash ? dash[0] : 1e6; l.material.gapSize = dash ? dash[1] : 0; }
 function fxTri(a, b, c, color, opacity) { if (opacity <= 0.005) return; const m = FXP.tri.get(); m.visible = true; const P = m.geometry.attributes.position; P.setXYZ(0, ...a); P.setXYZ(1, ...b); P.setXYZ(2, ...c); P.needsUpdate = true; m.geometry.computeBoundingSphere(); m.material.color.set(color); m.material.opacity = opacity; }
 function fxPoints(arr, color, size, opacity) { if (opacity <= 0.005 || !arr.length) return; const p = FXP.pts.get(); p.visible = true; const P = p.geometry.attributes.position; const n = Math.min(2000, arr.length / 3); for (let i = 0; i < n; i++) P.setXYZ(i, arr[i * 3], arr[i * 3 + 1], arr[i * 3 + 2]); p.geometry.setDrawRange(0, n); P.needsUpdate = true; p.material.color.set(color); p.material.size = size; p.material.opacity = opacity; }
+
+// —— 地震冲击波：叠在楼群之上的地面光环（不做深度测试，不会被楼挡住）＋向外扩散、高出楼顶的半透明波墙 ——
+const SHOCK_RING_TEX = (() => { const c = mkCanvas(256, 4), g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 256, 0); gr.addColorStop(0, 'rgba(255,90,50,0)'); gr.addColorStop(0.55, 'rgba(255,95,55,0.22)'); gr.addColorStop(0.9, 'rgba(240,55,30,1)'); gr.addColorStop(0.97, 'rgba(255,170,120,1)'); gr.addColorStop(1, 'rgba(255,90,50,0)'); g.fillStyle = gr; g.fillRect(0, 0, 256, 4); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+const SHOCK_WALL_TEX = (() => { const c = mkCanvas(4, 256), g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, 'rgba(255,90,50,0)'); gr.addColorStop(0.6, 'rgba(255,85,45,0.16)'); gr.addColorStop(1, 'rgba(235,60,30,0.5)'); g.fillStyle = gr; g.fillRect(0, 0, 4, 256); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+const SHOCK = pool(() => { const N = 160, g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array((N + 1) * 2 * 3), 3)); const uv = new Float32Array((N + 1) * 2 * 2); for (let k = 0; k <= N; k++) { uv[k * 4] = 0; uv[k * 4 + 1] = 0.5; uv[k * 4 + 2] = 1; uv[k * 4 + 3] = 0.5; } g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  const idx = []; for (let k = 0; k < N; k++) { const a = k * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } g.setIndex(idx);
+  const ring = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: SHOCK_RING_TEX, transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide, fog: false, toneMapped: false })); ring.frustumCulled = false; ring.renderOrder = 30;
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 160, 1, true), new THREE.MeshBasicMaterial({ map: SHOCK_WALL_TEX, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false, toneMapped: false })); wall.renderOrder = 29;
+  const grp = new THREE.Group(); grp.add(ring, wall); grp.userData = { ring, wall, N }; return dyn(grp); });
+const QFLASH = pool(() => { const f = glowSprite('#ff4a24', 1, 1, false); f.material.depthTest = false; f.renderOrder = 31; return dyn(f); });
+function shockwave(cx, cz, R, a, width = 9, wallH = 62) { if (a <= 0.01 || R <= 1) return; const grp = SHOCK.get(); grp.visible = true; const { ring, wall, N } = grp.userData; const P = ring.geometry.attributes.position; const r0 = Math.max(0, R - width);
+  for (let k = 0; k <= N; k++) { const th = k / N * Math.PI * 2, c = Math.cos(th), s2 = Math.sin(th); P.setXYZ(k * 2, cx + c * r0, 1.0, cz + s2 * r0); P.setXYZ(k * 2 + 1, cx + c * R, 1.0, cz + s2 * R); } P.needsUpdate = true; ring.material.opacity = a;
+  wall.position.set(cx, wallH / 2, cz); wall.scale.set(R, wallH, R); wall.material.opacity = a * 0.9; }
 // 热成像扫描窗：被困者埋在约 1.5 米深的瓦砾堆下，窗口贴在被困者所在高度、不做深度测试（像镜头一样压在瓦砾之上），深色底＋网格刻度＋青色边框＋扫掠扇区；
 // 窗口周围的表层碎块按视线与瓦砾表面的交点做透视抖动，让窗口边缘像是穿透瓦砾
 const SCAN_TEX = (() => { const c = mkCanvas(512, 512), g = c.getContext('2d'); const gr = g.createRadialGradient(256, 256, 0, 256, 256, 256); gr.addColorStop(0, '#1f3443'); gr.addColorStop(1, '#0c171f'); g.fillStyle = gr; g.beginPath(); g.arc(256, 256, 256, 0, 7); g.fill();
@@ -82,11 +95,31 @@ const SCANWIN = pool(() => { const g = new THREE.Group(); const circ = new THREE
   const rim = new THREE.Mesh(new THREE.RingGeometry(0.982, 1.0, 120).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#5fd4ff', transparent: true, depthWrite: false, depthTest: false, fog: false })); rim.position.y = 0.006; rim.renderOrder = 18; g.add(rim); g.userData = { disc, rim, sweep }; return dyn(g); });
 function scanWindow(c, k, T, r0 = 1.05) { if (k <= 0.01) return 0; const g = SCANWIN.get(); g.visible = true; g.position.set(c[0], 0.035, c[2]); const r = r0 * (0.55 + 0.45 * smooth(k)); g.scale.set(r, 1, r); const u = g.userData; u.disc.material.opacity = 0.92 * k; u.rim.material.opacity = k; u.sweep.material.opacity = k; u.sweep.rotation.y = -T * 2.6; return r; }
 function lensCenter(c, y = 1.4) { const p = cam.position; const k = clamp((p.y - y) / Math.max(1e-3, p.y - c[1])); return [p.x + (c[0] - p.x) * k, y, p.z + (c[2] - p.z) * k]; }
+
+// —— 有粗细的光束（细圆柱，按两点摆放）、带透明渐变的扇面：扫描线、雷达锥、路径线用（1 像素的线在成片里看不清） ——
+const SCAN = '#0f9df0'; // 扫描类特效统一用的亮青蓝
+const BEAM = pool(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 8, 1, true), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false, fog: false })); m.renderOrder = 8; m.frustumCulled = false; return dyn(m); });
+function beam(a, b, r, color, opacity = 1, onTop = false) { if (opacity <= 0.01) return; const m = BEAM.get(); m.visible = true; span(m, a, b, r, r); m.material.color.set(color); m.material.opacity = opacity; m.material.depthTest = !onTop; m.renderOrder = onTop ? 26 : 8; }
+function dashBeam(pts, r, color, opacity, dash, gap, progress = 1, onTop = false) { let acc = 0, total = 0; const L = []; for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1], pts[i][2] - pts[i - 1][2]); L.push(d); total += d; } const lim = total * clamp(progress);
+  for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], d = L[i - 1]; for (let u = 0; u < d; u += dash + gap) { const s0 = acc + u; if (s0 > lim) return; const e = Math.min(d, u + dash, lim - acc); if (e <= u) continue; beam(vl(a, b, u / d), vl(a, b, e / d), r, color, opacity, onTop); } acc += d; } }
+const FAN = pool(() => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(12), 4)); const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, fog: false })); m.frustumCulled = false; m.renderOrder = 7; return dyn(m); });
+function fan(apex, b0, b1, color, aApex, aBase) { if (aBase <= 0.005) return; const m = FAN.get(); m.visible = true; const P = m.geometry.attributes.position, Cc = m.geometry.attributes.color; P.setXYZ(0, ...apex); P.setXYZ(1, ...b0); P.setXYZ(2, ...b1); const c = new THREE.Color(color); Cc.setXYZW(0, c.r, c.g, c.b, aApex); Cc.setXYZW(1, c.r, c.g, c.b, aBase); Cc.setXYZW(2, c.r, c.g, c.b, aBase); P.needsUpdate = Cc.needsUpdate = true; m.geometry.computeBoundingSphere(); }
+// 生命探测雷达锥：雷达面板 → 前方地面的扇形波束（渐变扇面＋两条边线＋地面弧线），波纹沿波束向前推进
+function radarCone(o, dir, T, a, len = 4.8, half = 0.42) { if (a <= 0.01) return; const base = (ang, r) => [o[0] + Math.sin(dir + ang) * r, 0.08, o[2] + Math.cos(dir + ang) * r];
+  const n = 6; for (let i = 0; i < n; i++) fan(o, base(-half + 2 * half * i / n, len), base(-half + 2 * half * (i + 1) / n, len), SCAN, 0.04 * a, 0.3 * a);
+  beam(o, base(-half, len), 0.018, SCAN, 0.9 * a); beam(o, base(half, len), 0.018, SCAN, 0.9 * a);
+  const arc = (r, op) => { const P = []; for (let i = 0; i <= 18; i++) P.push(base(-half + 2 * half * i / 18, r)); for (let i = 1; i < P.length; i++) beam(P[i - 1], P[i], 0.025, SCAN, op); }; arc(len, 0.9 * a);
+  for (let k = 0; k < 3; k++) { const ph = ((T * 0.9 + k / 3) % 1); arc(0.4 + ph * (len - 0.4), a * (1 - ph) * 0.85); } }
+// 疑似生命信号标识：贴在瓦砾表面的醒目橙红圆环（不被遮挡）、竖直信标线与菱形标、外扩脉冲
+function suspectMarker(c, y, T, a) { if (a <= 0.01) return; const top = [c[0], y + 3.2, c[2]]; beam([c[0], y, c[2]], top, 0.05, COL.red, a, true);
+  const P = []; for (let i = 0; i <= 48; i++) { const th = i / 48 * Math.PI * 2; P.push([c[0] + Math.cos(th) * 1.4, y + 0.1, c[2] + Math.sin(th) * 1.4]); } for (let i = 1; i < P.length; i++) beam(P[i - 1], P[i], 0.07, COL.red, a, true);
+  for (let k = 0; k < 2; k++) { const ph = (T * 0.8 + k / 2) % 1; const Q = []; for (let i = 0; i <= 48; i++) { const th = i / 48 * Math.PI * 2, r = 1.4 + ph * 2.6; Q.push([c[0] + Math.cos(th) * r, y + 0.1, c[2] + Math.sin(th) * r]); } for (let i = 1; i < Q.length; i++) beam(Q[i - 1], Q[i], 0.04, COL.red, a * (1 - ph) * 0.8, true); }
+  const d = 0.32; const D = [[0, d * 1.4, 0], [d, 0, 0], [0, -d * 1.4, 0], [-d, 0, 0]].map((v) => add(top, v)); for (let i = 0; i < 4; i++) beam(D[i], D[(i + 1) % 4], 0.045, COL.red, a, true); }
 function circlePts(c, r, n = 64) { const a = []; for (let k = 0; k <= n; k++) { const t = k / n * Math.PI * 2; a.push([c[0] + Math.cos(t) * r, c[1], c[2] + Math.sin(t) * r]); } return a; }
-function scanRings(c, T, radius = 3.4, alpha = 1, color = '#2fa8e0') { for (let i = 0; i < 3; i++) { const ph = ((T * 0.55 + i / 3) % 1 + 1) % 1; fxRing(c, 0.15 + ph * radius, color, alpha * (1 - ph) * 0.9, 0.035); } }
+function scanRings(c, T, radius = 3.4, alpha = 1, color = SCAN) { for (let i = 0; i < 3; i++) { const ph = ((T * 0.55 + i / 3) % 1 + 1) % 1; fxRing(c, 0.15 + ph * radius, color, alpha * (1 - ph) * 0.95, 0.1); } }
 function downwash(c, T, k, s = 1) { if (k <= 0.01) return; for (let i = 0; i < 3; i++) { const ph = (T * 1.6 + i / 3) % 1; fxRing([c[0], c[1] + 0.03, c[2]], (0.5 + ph * 2.6) * s, '#8a8378', k * (1 - ph) * 0.5, 0.05 * s); }
   const p = []; const R = mulberry32(17); for (let i = 0; i < 260; i++) { const a = R() * 6.283, r0 = R(), sp = R(), h = R(); const u = ((T * (0.6 + sp) + r0) % 1); const r = (0.4 + u * 3.2) * s; p.push(c[0] + Math.cos(a) * r, c[1] + 0.04 + h * 0.35 * u * s, c[2] + Math.sin(a) * r); } fxPoints(p, '#9d968b', 2.2, 0.6 * k); }
-function routeLine(pts, T, k = 1, alpha = 1) { fxLine(pts, COL.orange, 0.95 * alpha, [0.22, 0.16], k); }
+function routeLine(pts, T, k = 1, alpha = 1) { dashBeam(pts, 0.035, COL.orange, 0.95 * alpha, 0.24, 0.16, k); }
 function stream(a, b, lift, T, n = 46, alpha = 1, color = COL.orange, speed = 0.55) { if (alpha <= 0.01) return; const m = [(a[0] + b[0]) / 2, Math.max(a[1], b[1]) + lift, (a[2] + b[2]) / 2]; const arr = [], line = [];
   for (let k = 0; k <= 40; k++) { const u = k / 40; const q = (1 - u) * (1 - u), r = 2 * u * (1 - u), s = u * u; line.push([q * a[0] + r * m[0] + s * b[0], q * a[1] + r * m[1] + s * b[1], q * a[2] + r * m[2] + s * b[2]]); }
   for (let k = 0; k < n; k++) { const u = ((k / n + T * speed) % 1); const q = (1 - u) * (1 - u), r = 2 * u * (1 - u), s = u * u; arr.push(q * a[0] + r * m[0] + s * b[0], q * a[1] + r * m[1] + s * b[1], q * a[2] + r * m[2] + s * b[2]); }
@@ -118,7 +151,7 @@ function cursorAt(T) {
   return null;
 }
 let HUD = null;
-function ui(T, o = {}) { if (!HUD) return; drawUI(HUD, { T, tel: telemetry(T), cursor: o.noCursor ? null : cursorAt(T), ...o }); }
+function ui(T, o = {}) { if (!HUD) return; drawUI(HUD, { T, tel: telemetry(T), cursor: null, ...o }); } // 不再显示鼠标点击
 const label = (p, title, sub, dx, dy, a = 1, col) => callout(HUD, p, title, sub, dx, dy, a, col);
 
 // —— 片尾名单 ——
@@ -147,7 +180,7 @@ const SH = {
     const T = T0.s01 + t; const k = smoother(t / 7); const qk = smooth(range(t, TQ - 0.1, TQ + 0.15)) * (1 - smooth(range(t, TQ + 1.2, TQ + 3.2))); const sh = shake(t, 1.0 * qk, 3.2, 2);
     setLook('table'); setCam(add(vl([270, 175, 250], [196, 78, 150], k), [sh.x, sh.y, sh.z]), vl([-25, 0, -35], [-18, 4, -28], k), 38); setShadow([-10, 0, -20], 430); fog(260, 1300); TILT.r = 0.45; TILT.k = 0.9;
     const Q = quakeFn(t); updateCity(T, { quake: Q, growT: t, quakeT: t - TQ, fire: 1, smoke: smooth(range(t, TQ + 0.5, TQ + 2.5)), debris: t > TQ ? debrisFill(t, Q) : null, fogNear: 260, fogFar: 1300 });
-    if (t > TQ) { const R = (t - TQ) * QV; const a = 1 - smooth(range(t, TQ + 1.6, TQ + 2.8)); for (const [dr, w] of [[0, 1], [-14, 0.5]]) if (R + dr > 1) fxRing([QX, 0.6, QZ], R + dr, COL.orange, 0.85 * a * w, 1.6); }
+    if (t > TQ) { const R = (t - TQ) * QV; const a = 1 - smooth(range(t, TQ + 1.8, TQ + 3.0)); shockwave(QX, QZ, R, a); shockwave(QX, QZ, R * 0.62, a * 0.55, 6, 34); const fk = 1 - smooth(range(t, TQ, TQ + 0.9)); if (fk > 0.01) { const f = QFLASH.get(); f.visible = true; f.position.set(QX, 14, QZ); const sz = 50 + 220 * (t - TQ); f.scale.set(sz, sz, 1); f.material.opacity = 0.8 * fk; } } // 主波＋紧随的次波＋震中闪光
     ui(T, { boot: smooth(range(t, 0.15, 2.8)), view: '沙盘 TABLE', word: t < TQ ? '城区白模' : '强震 M7.2', sub: t < TQ ? 'SAND TABLE · 1 : 500' : 'EPICENTER · 42 BUILDINGS DOWN' });
     if (t > TQ + 0.6) label(project([QX, 1, QZ]), '震中', 'EPICENTER · M7.2 · 10 KM', -150, -90, smooth(range(t, TQ + 0.6, TQ + 1.2)) * (1 - smooth(range(t, 6.4, 7))));
   } },
@@ -164,7 +197,7 @@ const SH = {
   } },
   // ———— 二、出发 ————
   s04: { transIn: { type: 'wipe', dur: 0.6 }, update(t) { // 远眺高地：基站亮灯、开舱
-    const T = T0.s04 + t; const D = CITY.dock; const sh = shake(t, 0.01, 0.8, 9); setLook('table'); setCam([300 + sh.x, D[1] + 8 + sh.y, -70], [D[0], D[1] + 1.2, D[2]], 2.9); /* 机位略高于山顶平台，看得到平台上的营地 */ setShadow(D, 14); fog(600, 4000); TILT.on = false;
+    const T = T0.s04 + t; const D = CITY.dock; const sh = shake(t, 0.01, 0.8, 9); setLook('table'); cam.near = 40; setCam([300 + sh.x, D[1] + 8 + sh.y, -70], [D[0], D[1] + 1.2, D[2]], 2.9); /* 机位略高于山顶平台，看得到平台上的营地；长焦远景把近裁剪面推远，深度精度够用，营地不闪烁 */ setShadow(D, 14); fog(600, 4000); TILT.on = false;
     updateCity(T, { fogNear: 600, fogFar: 4000 }); const b = BASE.get(); b.update(D, openT(T), 0, T, lightT(T)); const top = b.world([0, dockTop(0) + COMB_REST, 0]);
     combined(top, DOCK.ry, 0, 0, { angle: 0, speed: 0 }, T, 1.2 * lightT(T));
     ui(T, { word: '基站开舱', sub: 'BASE · HATCH OPEN' }); label(project(add(D, [0, 2.6, 0])), '基站', 'BASE · 通讯 · 充电 · 防护', 140, -90, smooth(range(t, 0.5, 1.1)));
@@ -223,14 +256,18 @@ const SH = {
     const T = T0.s11 + t; const u = t / 4; const D = [lerp(-1.5, 1.0, u), lerp(17, 19, u), lerp(13, 1, u)]; setLook('table'); setCam([D[0] + 8, D[1] + 5.5, D[2] + 13], [D[0] - 0.5, 6, D[2] - 9], 46); setShadow([0, 0, 0], 50); fog(60, 500); TILT.r = 0.45; TILT.k = 0.5;
     drawDrone({ pos: D, heading: Math.PI, pitch: 0.08, rot: rotorSpin(T, { t0: 0 }), t: T });
     const sw = (t * 0.9) % 1; const zs = D[2] - 2 - 14 * sw, xs = D[0]; const G = [D[0], D[1] - 0.25, D[2] - 0.3]; const fanA = 0.9 * (1 - smooth(range(t, 3.4, 3.9)));
-    fxTri(G, [xs - 15, 0.15, zs], [xs + 15, 0.15, zs], '#1f9fd8', 0.1 * fanA); fxLine([[xs - 15, 0.18, zs], [xs + 15, 0.18, zs]], '#1f9fd8', fanA); fxLine([G, [xs - 15, 0.15, zs]], '#1f9fd8', 0.45 * fanA); fxLine([G, [xs + 15, 0.15, zs]], '#1f9fd8', 0.45 * fanA);
+    // 激光扫描面：从机腹扫描头扇形打到地面，扫描线贴着瓦砾表面起伏（始终可见），扫描面带透明渐变，两条边线
+    const hmAt = (x, z) => { const rr = Math.hypot(x - 0.5, z + 9.5); return Math.max(0.15, 4.2 * 0.8 * Math.pow(Math.max(0, 1 - Math.min(1, rr / 9.5) ** 2), 1.3)); };
+    const SL = []; for (let i = 0; i <= 40; i++) { const x = xs - 15 + 30 * i / 40; SL.push([x, hmAt(x, zs) + 0.12, zs]); }
+    for (let i = 0; i < 40; i++) { fan(G, SL[i], SL[i + 1], SCAN, 0.02 * fanA, 0.32 * fanA); beam(SL[i], SL[i + 1], 0.07, SCAN, fanA, true); }
+    beam(G, SL[0], 0.03, SCAN, 0.8 * fanA); beam(G, SL[40], 0.03, SCAN, 0.8 * fanA);
     // 扫过区域的点云（扫描结果）
     const front = D[2] - 16; const bright = []; const R2 = mulberry32(5); for (let i = 0; i < 1900; i++) { const a = R2() * 6.283, rr = Math.sqrt(R2()) * 9.5 * (1 + 0.2 * Math.sin(3 * a + 0.5)); const x = 0.5 + Math.cos(a) * rr, z = -9.5 + Math.sin(a) * rr; if (z < front || z < zs) continue; const hm = 4.2 * 0.8 * Math.max(0, 1 - Math.min(1, rr / 9.5) ** 2) ** 1.3; bright.push(x, hm * (0.75 + 0.45 * R2()) + 0.15, z); }
-    fxPoints(bright, '#1f9fd8', 2.4, 0.85);
+    fxPoints(bright, SCAN, 3.4, 0.95);
     updateCity(T, { fogNear: 60, fogFar: 500 }); const b = walkBody(T); const feet = gaitFeet(T, walkBody, { freq: 2.0, lift: 0.07 }); drawHexapod({ pose: { x: b.x, y: HEX.standH, z: b.z, heading: Math.PI }, feet });
-    const zk = smooth(range(t, 2.0, 2.5)); if (zk > 0) fxLine(circlePts([VICTIM[0], 0.12, VICTIM[2]], 2.6 * (1.6 - 0.6 * zk), 72), COL.orange, zk, [0.5, 0.35]);
+    const zk = smooth(range(t, 2.0, 2.5)); suspectMarker(VICTIM, 1.35, T, zk);
     routeLine(ROUTE, T, smooth(range(t, 2.4, 3.6)));
-    ui(T, { word: '空中侦察', sub: 'LIDAR · 2.4 M PTS/S' }); label(project([VICTIM[0], 0.3, VICTIM[2]]), '疑似生命信号', 'ZONE A · 置信度 64%', 150, -80, zk); label(project([b.x, 0.2, b.z]), '规划路径', 'PATH · 9.2 M · 坡度 18°', -170, 70, smooth(range(t, 2.6, 3.0)));
+    ui(T, { word: '空中侦察', sub: 'LIDAR · 2.4 M PTS/S' }); label(project([VICTIM[0], 1.35 + 3.6, VICTIM[2]]), '疑似生命信号', 'ZONE A · 置信度 64%', 150, -60, zk, COL.red); label(project([b.x, 0.2, b.z]), '规划路径', 'PATH · 9.2 M · 坡度 18°', -170, 70, smooth(range(t, 2.6, 3.0)));
   } },
   s12: { update(t) { // 六足机器人沿规划路线在碎石间前行（贴地跟拍）
     const T = T0.s12 + t; const b = walkBody(T); const feet = gaitFeet(T, walkBody, { freq: 2.0, lift: 0.07 }); const sh = shake(t, 0.008, 2, 11); const sk = 1 - smooth(range(t, 2.8, 4)); const c = searchCam(T);
@@ -242,37 +279,37 @@ const SH = {
     const T = T0.s13 + t; const b = walkBody(T); const feet = gaitFeet(T, walkBody, { freq: 2.0, lift: 0.07 }); const c = searchCam(T); setLook('table'); setCam(c.p, c.look, c.f); setShadow([b.x, 0, b.z], 6); fog(20, 160); TILT.r = 0.42; TILT.k = 0.4;
     const dep = smooth(range(t, 0.9, 2.0)); const hp = drawHexapod({ pose: { x: b.x, y: HEX.standH, z: b.z, heading: Math.PI }, feet, scanner: dep });
     scanRings([REST.x, 0.05, REST.z - 0.5], T, 3.6, smooth(range(t, 1.5, 2.3))); routeLine(ROUTE, T, 1, 0.8 * (1 - smooth(range(t, 0.8, 1.8)))); updateCity(T, { fogNear: 20, fogFar: 160 });
-    const fa = smooth(range(t, 1.7, 2.5)); if (fa > 0) { const o = hp.world([0, 0.12, 0.32]); fxTri(o, [o[0] - 2, 0.1, o[2] - 4.6], [o[0] + 2, 0.1, o[2] - 4.6], '#1f9fd8', 0.1 * fa); }
+    const fa = smooth(range(t, 1.7, 2.5)); if (fa > 0) radarCone(hp.world([0, 0.16, 0.3]), Math.PI, T, fa);
     ui(T, { word: '生命探测', sub: 'UWB RADAR · IR · 6.0 M' }); label(project(hp.world([0, 0.2, 0.25])), '生命探测雷达展开', 'UWB + IR · 穿透 1.5 M', 170, -110, smooth(range(t, 1.4, 1.9)));
   } },
   s14: { update(t) { // 推向瓦砾：废墟透视，显出被困者热源与生命体征
     const T = T0.s14 + t; const v = spline(K_SEARCH, T); setLook('table'); camV(v); setShadow([REST.x, 0, REST.z], 8); fog(20, 160); TILT.r = 0.4; TILT.k = 0.35;
     const hp = drawHexapod({ pose: restPose(), feet: restFeet(), scanner: 1 }); scanRings([REST.x, 0.05, REST.z - 0.5], T, 3.6);
     const xk = smooth(range(t, 0.15, 1.1)), found = smooth(range(t, 0.7, 1.4)); const wr = scanWindow(VICTIM, xk, T), lc = lensCenter(VICTIM); setXray(lc[0], lc[2], Math.max(0.01, wr * 1.3), xk, 0.8); updateCity(T, { fogNear: 20, fogFar: 160 });
-    VICTIM_M.get().update(VICTIM, 0.3, xk, T); const o = hp.world([0, 0.12, 0.32]); fxTri(o, [o[0] - 2, 0.1, o[2] - 4.6], [o[0] + 2, 0.1, o[2] - 4.6], '#1f9fd8', 0.1);
+    VICTIM_M.get().update(VICTIM, 0.3, xk, T); radarCone(hp.world([0, 0.16, 0.3]), Math.PI, T, 1 - smooth(range(t, 0.15, 0.8))); // 镜头掠过机器人时雷达锥淡出，由热成像窗口接上
     ui(T, { word: '发现生命', sub: 'LIFE SIGNS · 置信度 97%' }); label(project([VICTIM[0] + 0.6, 0.3, VICTIM[2]]), '发现生命体征', '埋深 1.5 M · 呼吸 16 · 心率 92', 170, -110, found, COL.red);
   } },
   s15: { update(t) { // 镜头升起成上帝视角：信号经无人机中继传回基站，各处红点陆续亮起
-    const T = T0.s15 + t; const c = godRise(t); setLook('table'); setCamYPR(c.p, c.yaw, c.pitch, 0, c.fov); fogFor(c.p[1]); setShadow([lerp(VICTIM[0], 0, smooth(range(t, 0.5, 5.6))), 0, lerp(VICTIM[2], -6, smooth(range(t, 0.5, 5.6)))], lerpLog(10, 520, smooth(range(t, 0, 5)))); TILT.r = 0.5; TILT.k = 0.4 * (1 - smooth(range(t, 2, 4)));
+    const T = T0.s15 + t; const c = godRise(t); setLook('table'); setCamYPR(c.p, c.yaw, c.pitch, 0, c.fov); fogFor(c.p[1]); setShadow([lerp(VICTIM[0], 0, smooth(range(t, 0.5, 5.6))), 0, lerp(VICTIM[2], -6, smooth(range(t, 0.5, 5.6)))], lerpLog(10, 700, smooth(range(t, 0, 5)))); TILT.r = 0.5; TILT.k = 0.4 * (1 - smooth(range(t, 2, 4)));
     drawHexapod({ pose: restPose(), feet: restFeet(), scanner: 1 }); scanRings([REST.x, 0.05, REST.z - 0.5], T, 3.6, 1 - smooth(range(t, 1.5, 3)));
     const dp = DEVICES.drone; drawDrone({ pos: [dp[0], dp[1] + 0.3 * Math.sin(T * 1.3), dp[2]], heading: 2.12, rot: rotorSpin(T, { t0: 0 }), t: T, scale: lerp(1, 6, smooth(range(t, 1.5, 5.5))) });
     const wk = 1 - smooth(range(t, 0.8, 2.8)); const wr = scanWindow(VICTIM, wk, T), lc = lensCenter(VICTIM); setXray(lc[0], lc[2], Math.max(0.01, wr * 1.3), wk, 0.8); VICTIM_M.get().update(VICTIM, 0.3, 1 - smooth(range(t, 1.5, 3.5)), T);
-    const ds = (i) => (i === 0 ? smooth(range(t, 2.8, 3.6)) : clamp((t - DOT_T[i]) / 0.25)); /* 一号光柱等镜头升高后再立起（近处的光柱会糊满画面） */ updateCity(T, { marks: ds, markH: clamp(c.p[1] * 0.25, 2, 30), markS: clamp(c.p[1] / 145, 0.25, 2.6), fogNear: FOG.near, fogFar: FOG.far }); // 光柱高度和粗细随相机高度变化，始终在镜头下方
+    const ds = (i) => (i === 0 ? smooth(range(t, 2.8, 3.6)) : clamp((t - DOT_T[i]) / 0.25)); /* 一号光柱等镜头升高后再立起（近处的光柱会糊满画面） */ updateCity(T, { marks: ds, markH: clamp(c.p[1] * 0.25, 2, 30), markS: clamp(c.p[1] / 150, 0.25, 3.2), fogNear: FOG.near, fogFar: FOG.far }); // 光柱高度和粗细随相机高度变化，始终在镜头下方
     const sa = smooth(range(t, 0.6, 1.4)) * (1 - smooth(range(t, 4.2, 4.9))); stream([REST.x, 0.4, REST.z], dp, 6, T, 46, sa); stream(dp, [CITY.dock[0], CITY.dock[1] + 2, CITY.dock[2]], 60, T, 90, sa, '#1f9fd8', 0.35);
     ui(T, { word: '信号回传', sub: 'MESH RELAY · HEXAPOD → DRONE → BASE' });
   } },
   s16: { update(t) { // 指挥中心：从大屏后拉，整套监控界面显示在大屏上，8 个红点就是刚才的侦测结果
-    const T = T0.s16 + t; const u = clamp(t / 5), e = 1 - Math.pow(1 - u, 3); const cp = hallLerp(FILLP, END16, 0); cp[0] = END16[0] * smooth(u); cp[1] = lerp(FILLP[1], END16[1], smooth(u)); cp[2] = HALL.SZ + lerpLog(HALL.FILL_D, END16[2] - HALL.SZ, e);
-    const early = t < 0.8; hallFrame(T, cp, () => godScreen(T), { view: early ? undefined : '地图 MAP', word: early ? '信号回传' : '侦测完成', sub: early ? 'MESH RELAY · HEXAPOD → DRONE → BASE' : '8 SIGNALS · ALL COORDINATES SENT', full: smooth(range(t, 0.5, 1.6)) }, (c) => mapLabels(T, () => 1, smooth(range(t, 0.6, 1.4)), c));
+    const T = T0.s16 + t; const u = clamp(t / 5), L = Math.log((END16[2] - HALL.SZ) / HALL.FILL_D); const cp = [END16[0] * smooth(u), lerp(FILLP[1], END16[1], smooth(u)), HALL.SZ + HALL.FILL_D * Math.exp(0.6 * (1 - Math.exp(-t / 0.33)) + (L - 0.6) * smooth(u))]; // 第三版的后拉曲线：起步速度接住 s15 升空的速度，再慢慢停稳
+    const early = t < 0.8; hallFrame(T, cp, () => godScreen(T), { view: early ? undefined : '地图 MAP', word: early ? '信号回传' : '侦测完成', sub: early ? 'MESH RELAY · HEXAPOD → DRONE → BASE' : '8 SIGNALS · ALL COORDINATES SENT', full: smooth(range(t, 0.7, 1.9)) }, (c) => mapLabels(T, () => 1, smooth(range(t, 0.9, 1.7)), c));
     hallLabel(smooth(range(t, 1.6, 2.4)));
   } },
   s17: { update(t) { // 推回大屏：监控界面收回紧凑版，回到真实的上帝视角，选中六足机器人，下降到它上方
     const T = T0.s17 + t; const ui17 = { view: '地图 MAP', word: '结合返航', sub: 'SELECT · HEXAPOD 01' };
-    if (t < 1.6) { hallFrame(T, hallLerp(END16, FILLP, smoother(t / 1.6)), () => godScreen(T), { ...ui17, full: 1 - smooth(range(t, 0.35, 1.3)) }, (c) => { mapLabels(T, () => 1, 1 - smooth(range(t, 0.2, 0.8)), c); selRing(c, T, smooth(range(t, 0.6, 1.2))); }); hallLabel(1 - smooth(range(t, 0, 0.6))); return; }
-    const k = smoother(range(t, 1.6, 3.0)); const h = lerpLog(GOD.pos[1], 120, k), x = lerp(GOD.pos[0], REST.x, smooth(range(t, 1.6, 2.9))), z = lerp(GOD.pos[2], REST.z, smooth(range(t, 1.6, 2.9)));
-    setLook('table'); TILT.r = 0.42; TILT.k = 0.4 * k; setCamYPR([x, h, z], 0, -Math.PI / 2, 0, GOD.fov); setShadow([x, 0, z], lerpLog(520, 260, k)); fogFor(h);
+    if (t < 1.6) { hallFrame(T, hallLerp(END16, FILLP, (t / 1.6) ** 2), () => godScreen(T), { ...ui17, full: 1 - smooth(range(t, 0.35, 1.3)) }, (c) => { mapLabels(T, () => 1, 1 - smooth(range(t, 0.2, 0.8)), c); selRing(c, T, smooth(range(t, 0.6, 1.2))); }); hallLabel(1 - smooth(range(t, 0, 0.6))); return; }
+    const k = smoother(range(t, 1.6, 3.0)), tau = clamp((t - 1.6) / 1.4), p0 = Math.log(GOD.pos[1]), p1 = Math.log(120), m0 = -Math.log((END16[2] - HALL.SZ) / HALL.FILL_D) * 1.25 * 1.4; const h = Math.exp((2 * tau ** 3 - 3 * tau ** 2 + 1) * p0 + (tau ** 3 - 2 * tau ** 2 + tau) * m0 + (-2 * tau ** 3 + 3 * tau ** 2) * p1), /* 带着推进大屏的速度继续下降，没有停顿 */ x = lerp(GOD.pos[0], REST.x, smooth(range(t, 1.6, 2.9))), z = lerp(GOD.pos[2], REST.z, smooth(range(t, 1.6, 2.9)));
+    setLook('table'); TILT.r = 0.42; TILT.k = 0.4 * k; setCamYPR([x, h, z], 0, -Math.PI / 2, 0, GOD.fov); setShadow([x, 0, z], lerpLog(700, 260, k)); fogFor(h);
     drawHexapod({ pose: restPose(), feet: restFeet(), scanner: 1 }); const dp = DEVICES.drone; drawDrone({ pos: [dp[0], dp[1] + 0.3 * Math.sin(T * 1.3), dp[2]], heading: 2.12, rot: rotorSpin(T, { t0: 0 }), t: T, scale: lerp(6, 1, k) });
-    updateCity(T, { marks: () => 1, markH: lerp(30, 30, k), markS: lerp(2.6, 1.2, k), fogNear: FOG.near, fogFar: FOG.far }); ui(T, ui17); selRing(HUD, T, 1);
+    updateCity(T, { marks: () => 1, markH: 30, markS: lerp(3.2, 1.2, k), fogNear: FOG.near, fogFar: FOG.far }); ui(T, ui17); selRing(HUD, T, 1);
   } },
   s18: { update(t) { // 急速下降回到现场；无人机飞回悬停
     const T = T0.s18 + t; const c = gtaCam(t); setLook('table'); setCamYPR(c.p, c.yaw, c.pitch, 0, c.fov); fogFor(Math.max(c.h * (1 - smooth(range(t, 2.1, 3.5))), 1.5)); setShadow([REST.x, 0, REST.z], lerpLog(260, 8, smooth(range(t, 0, 3)))); TILT.r = 0.42; TILT.k = 0.4;
@@ -309,7 +346,7 @@ const SH = {
     ui(T, { word: '协同救援', sub: 'HELI · 3 RESCUERS BOARDING' });
   } },
   s22: { update(t) { // 空中擦肩：跟拍直升机飞向灾区，完成任务的结合体迎面飞过、返回基站（交汇处放慢）
-    const T = T0.s22 + t; const tauAt = (tt) => { let a = 0; const n = Math.round(tt * 96); for (let i = 0; i < n; i++) a += (1 - 0.62 * Math.exp(-((((i + 0.5) / 96 - 2.3) / 0.7) ** 2))) / 96; return a; }; const tau = tauAt(t), tc = tauAt(2.3);
+    const T = T0.s22 + t; const tau = t, tc = 2.3; // 匀速擦肩（去掉慢动作）
     const Hp = [560 - 16 * tau, 90, 30]; setLook('table'); setCam(add(Hp, [24, 6, 10]), add(Hp, [-40, -10, -3]), 36); setShadow([250, 0, 0], 600); fog(300, 2400); TILT.r = 0.55; TILT.k = 0.5;
     updateCity(T, { fogNear: 300, fogFar: 2400 }); HELI.get().update({ pos: Hp, heading: -Math.PI / 2, pitch: 0.12, rotor: tau * 30, speed: 1, search: true });
     const xc = 560 - 16 * tc; combined([xc + 12 * (tau - tc), 93, 35], Math.PI / 2, 0.18, 0, rotorSpin(tau + 100, { t0: 0 }), tau);
@@ -320,9 +357,9 @@ const SH = {
     const S = s23Ground(), ground = S.g, G = [VICTIM[0], ground, VICTIM[2]]; const hl = HELI.get(); const lift = smoother(range(t, 1.6, 5.3));
     const tipW = () => hl.world([1.78, 0.9, 0.4]); hl.update({ pos: HP, heading: hd, pitch: 0.1 * go, rotor: T * 30, speed: 1, door: 1, search: true, cable: 0.01 }); const tip = tipW();
     const sway = 0.05 * Math.sin(T * 2.3) * lift; const sp = [lerp(G[0], tip[0], lift) + sway, lerp(S.y0, tip[1] - 1.1, lift), lerp(G[2], tip[2], lift)];
-    hl.update({ pos: HP, heading: hd, pitch: 0.1 * go, rotor: T * 30, speed: 1, door: 1, search: true, cable: Math.max(0.05, tip[1] - (sp[1] + 1.0)) });
     const camP = [G[0] + lerp(3.1, 4.6, lift), ground + 2.9 + (sp[1] - ground) * 0.85, G[2] + lerp(2.6, 4.1, lift)]; setLook('table'); setCam(camP, [sp[0], sp[1] + 0.35 + 1.4 * smooth(range(t, 3.4, 5.6)), sp[2]], 55); setShadow(G, 30); fog(30, 300); TILT.r = 0.45; TILT.k = 0.35;
-    const lv = clamp((sp[1] - S.y0) / S.clear); STRETCHER.get().update(sp, lerp(S.yaw, hd + Math.PI, smooth(range(t, 1.9, 4.6))) + 0.06 * Math.sin(T * 1.7) * lift, S.roll * (1 - lv) + 0.04 * Math.sin(T * 2.3) * lift, S.pitch * (1 - lv)); /* 落地时顺着坡面躺平，吊离地面后再放平；吊升中转到与机身平行，停在舱门外 */ drawHuman({ pos: [G[0] - 0.95, S.r, G[2] + 0.7], heading: 1.6, phase: 0, run: 0, armsUp: t < 1.8 }); // 队员站在担架左侧（不挡吊索），先举手示意起吊
+    const lv = clamp((sp[1] - S.y0) / S.clear); const ring = STRETCHER.get().update(sp, lerp(S.yaw, hd + Math.PI, smooth(range(t, 1.9, 4.6))) + 0.06 * Math.sin(T * 1.7) * lift, S.roll * (1 - lv) + 0.04 * Math.sin(T * 2.3) * lift, S.pitch * (1 - lv)); /* 落地时顺着坡面躺平，吊离地面后再放平；吊升中转到与机身平行，停在舱门外 */ drawHuman({ pos: [G[0] - 0.95, S.r, G[2] + 0.7], heading: 1.6, phase: 0, run: 0, armsUp: t < 1.8 }); // 队员站在担架左侧（不挡吊索），先举手示意起吊
+    hl.update({ pos: HP, heading: hd, pitch: 0.1 * go, rotor: T * 30, speed: 1, door: 1, search: true, cable: 1, cableTo: ring }); // 吊索从绞车直接连到担架吊环（担架贴坡倾斜时吊环位置也跟着变）
     setXray(VICTIM[0], VICTIM[2], 4.2, 1, 1.0); updateCity(T, { fogNear: 30, fogFar: 300 });
     for (let i = 0; i < 3; i++) { const ph = (T * 1.6 + i / 3) % 1; drapeRing(G[0], G[2], (0.5 + ph * 2.6) * 2.2, '#8a8378', (1 - ph) * 0.45, 0.11); } // 旋翼下洗气流的尘土环（贴着土丘表面）
     for (let i = 0; i < 2; i++) { const ph = (T * 0.7 + i * 0.5) % 1; drapeRing(G[0], G[2], 0.7 + ph * 2.4, t > 1.85 ? GREEN : COL.red, (1 - ph) * 0.85 * (1 - smooth(range(t, 4.5, 5.5))), 0.06); } // 地面脉冲环：担架离地时由红变绿
@@ -383,9 +420,9 @@ const SCC = [0, HALL.SY, HALL.SZ], FILLP = [0, HALL.SY, HALL.SZ + HALL.FILL_D], 
 // 两点之间推拉：距离按对数插值（离屏越近越慢），横向与高度平滑过渡
 const hallLerp = (A, B, k) => { const dA = A[2] - HALL.SZ, dB = B[2] - HALL.SZ; return [lerp(A[0], B[0], k), lerp(A[1], B[1], k), HALL.SZ + lerpLog(dA, dB, k)]; };
 // 大屏上的上帝视角（与 s15 结尾、s17/s27 推回后的直接画面同一取景与光照）
-function godScreen(T, o = {}) { setLook('table'); TILT.on = false; setCamYPR(GOD.pos, 0, -Math.PI / 2, 0, GOD.fov); setShadow([GOD.pos[0], 0, GOD.pos[2]], 520); fog(600, 2600);
+function godScreen(T, o = {}) { setLook('table'); TILT.on = false; setCamYPR(GOD.pos, 0, -Math.PI / 2, 0, GOD.fov); setShadow([GOD.pos[0], 0, GOD.pos[2]], 700); fog(600, 2600);
   if (o.devices !== false) { drawHexapod({ pose: restPose(), feet: restFeet(), scanner: 1 }); const dp = DEVICES.drone; drawDrone({ pos: [dp[0], dp[1] + 0.3 * Math.sin(T * 1.3), dp[2]], heading: 2.12, rot: rotorSpin(T, { t0: 0 }), t: T, scale: 6 }); }
-  updateCity(T, { marks: o.marks || (() => 1), markH: 30, markS: 2.6, fogNear: 600, fogFar: 2600 }); }
+  updateCity(T, { marks: o.marks || (() => 1), markH: 30, markS: 3.2, fogNear: 600, fogFar: 2600 }); }
 function hallFrame(T, cp, god, uiO, extra, o = {}) {
   god(); renderGL(); SCX.setTransform(1, 0, 0, 1, 0, 0); SCX.globalAlpha = 1; SCX.drawImage(glCanvas, 0, 0); if (extra) extra(SCX);
   drawUI(SCX, { T, tel: telemetry(T), cursor: null, ...uiO }); SCR_TEX.needsUpdate = true;
@@ -413,7 +450,7 @@ function zoomShot(T, tau, ds, uiO, hallA) {
   UICX.setTransform(1, 0, 0, 1, 0, 0); UICX.clearRect(0, 0, W, H); mapLabels(T, ds, labA, UICX); drawUI(UICX, { T, tel: telemetry(T), cursor: null, ...uiO }); // 界面层先按大屏像素画好
   cam.setViewOffset(W, H, -z.x0 / z.s, -z.y0 / z.s, W / z.s, H / z.s);
   const cx = (-z.x0 + W / 2) / z.s, cy = (-z.y0 + H / 2) / z.s, hh = GOD.pos[1] * Math.tan(THREE.MathUtils.degToRad(GOD.fov / 2)); const wx = GOD.pos[0] + (cx / W - 0.5) * 2 * hh * W / H, wz = GOD.pos[2] + (cy / H - 0.5) * 2 * hh;
-  setShadow([wx, 0, wz], clamp(2.6 * hh * W / H / z.s, 30, 520)); fog(600, 2600); updateCity(T, { marks: ds, markH: 30, markS: 2.6, fogNear: 600, fogFar: 2600 });
+  setShadow([wx, 0, wz], clamp(2.6 * hh * W / H / z.s, 30, 700)); fog(600, 2600); updateCity(T, { marks: ds, markH: 30, markS: 3.2, fogNear: 600, fogFar: 2600 });
   if (HUD) { const a = 1 - smooth((z.s - 1.5) / 1.6); if (a > 0.01) { HUD.save(); HUD.globalAlpha = a; HUD.drawImage(UIC, z.x0, z.y0, W * z.s, H * z.s); HUD.restore(); } }
   return z;
 }

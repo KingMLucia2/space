@@ -90,11 +90,11 @@ node v2/render.mjs --shots cover --still 0 --png      # 封面 → out/v2/stills
 | `v4/src/engine.js` | 渲染器（物理材质、环境光照、太阳投影或接触阴影、移轴，可选 GTAO）、与第三版一致的相机接口、每帧对象池 |
 | `v4/src/models/hexapod.js` | 六足机器人：黑色铝板桁架腿＋各关节 20 kg 舵机、白色机身、可翻起的生命探测雷达面板、逆运动学步态 |
 | `v4/src/models/hexacopter.js` | 重载六旋翼：折叠臂与锁紧环、电调舱、带散热鳍片的电机、折叠桨、对接导向锥与锁扣、云台、起落架 |
-| `v4/src/models/city.js`、`cityData.js` | 白模灾区沙盘（布局沿用第三版）：楼体生长、地震后隆起的瓦砾、透视抖动、火光烟柱、被困者标记 |
+| `v4/src/models/city.js`、`cityData.js` | 灾区建筑模型沙盘（布局沿用第三版，楼体用低饱和模型色）：楼体生长、地震后隆起的瓦砾、透视抖动、火光烟柱、纯色被困者标记 |
 | `v4/src/models/props.js` | 基站、救援车、直升机（放样机身、真实门洞与机舱）、人物（跑动/坐姿，可按平面裁剪）、担架、机场、瓦砾里的手机、被困者热成像点云、片尾的三种载荷 |
 | `v4/src/models/detail.js` | 场景细节：人行道、路灯、行道树、红绿灯、斑马线、汽车、楼顶设备、广场铺装与街具、公路护栏与电线、山林、塌方警戒、基站营地、机场地面设施 |
 | `v4/src/models/hall.js` | 指挥中心大厅：视频墙（主屏贴上帝视角画面）、副屏、操作台、操作员 |
-| `v4/src/ui.js` | 任务仿真仪表盘：普通镜头用紧凑版（四角小卡、细进度条），指挥中心大屏上用完整版；鼠标点击阶段标签 |
+| `v4/src/ui.js` | 任务仿真仪表盘：普通镜头用紧凑版（左上、右上几张小卡和左下阶段大字，没有顶栏、进度条和鼠标），指挥中心大屏上用完整版 |
 | `v4/src/shots.js` | 30 个镜头（s30 是封面镜头）和不进成片的 `cover` 镜头 |
 | `audio/v4_score.py`、`audio/v4_mix.py` | 第三版配乐与混音延长到 152.4 秒，加上封面段的钟声与收束和弦；旁白沿用第三版 |
 
@@ -110,4 +110,4 @@ node v4/render.mjs --shots cover --still 0 --png      # 封面 → out/v4/stills
 
 ## 暂定内容
 
-项目名称“六合”和口号“上天入地，不放弃每一个生命”是暂定的。改名称时，需要改 `audio/lines.py` 里的旁白、`src/fx/hud.js` 的片尾字幕，然后重新生成旁白并重渲 `s26`。第三版还要改 `v2/src/hud.js` 的 `titleCard`、`v2/src/shots.js` 片尾和封面里的文字，重渲 `s28`、`s29`、`cover`。第四版要改 `v4/src/ui.js` 顶栏和 `v4/src/shots.js` 里片名卡、片尾、封面的文字（无人机机身印字在 `v4/src/models/hexacopter.js`），重渲 `s28`~`s30` 和 `cover`。
+项目名称“六合”和口号“上天入地，不放弃每一个生命”是暂定的。改名称时，需要改 `audio/lines.py` 里的旁白、`src/fx/hud.js` 的片尾字幕，然后重新生成旁白并重渲 `s26`。第三版还要改 `v2/src/hud.js` 的 `titleCard`、`v2/src/shots.js` 片尾和封面里的文字，重渲 `s28`、`s29`、`cover`。第四版要改 `v4/src/ui.js` 完整版界面（指挥中心大屏上）的标题和页脚、`v4/src/shots.js` 里片名卡、片尾、封面的文字（无人机机身印字在 `v4/src/models/hexacopter.js`），重渲 `s16`、`s17`、`s26`~`s30` 和 `cover`。

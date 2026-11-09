@@ -131,51 +131,28 @@ function chip(h, x, y, w, ht, title, idx) {
 }
 // —— 紧凑仪表盘（普通镜头）：顶栏收窄、四角小卡片、底部细进度条，画面中部完全留给三维画面 ——
 function drawCompact(h, s, a0) {
+  // 用户反馈：顶部状态栏和底部进度条挡视野、鼠标点击不要——只保留四角小卡片和左下阶段标题
   const T = s.T; if (a0 <= 0) return; const boot = s.boot ?? 1; const st = stageAt(T), S = STAGES[st]; const tel = s.tel || {};
-  const on = (i, n = 6) => smoother(clamp(boot * (n + 2) - i));
+  const on = (i, n = 3) => smoother(clamp(boot * (n + 2) - i));
   h.save(); h.globalAlpha = a0; h.textBaseline = 'alphabetic';
-  { const g = h.createLinearGradient(0, 0, 0, 118); g.addColorStop(0, 'rgba(242,239,234,0.86)'); g.addColorStop(0.55, 'rgba(242,239,234,0.55)'); g.addColorStop(1, 'rgba(242,239,234,0)'); h.globalAlpha = a0 * on(0); h.fillStyle = g; h.fillRect(0, 0, 1920, 118);
-    const g2 = h.createLinearGradient(0, 1080, 0, 958); g2.addColorStop(0, 'rgba(242,239,234,0.8)'); g2.addColorStop(1, 'rgba(242,239,234,0)'); h.fillStyle = g2; h.fillRect(0, 958, 1920, 122); h.globalAlpha = a0; }
-  // 顶栏：标识、标题
-  { const k = on(0); h.save(); h.globalAlpha *= k; h.translate(0, -20 * (1 - k));
-    h.fillStyle = COL.orange; h.fillRect(0, 0, 148, 74); h.strokeStyle = '#fff'; h.lineWidth = 2.4; h.lineJoin = 'round';
-    h.beginPath(); for (let i = 0; i < 6; i++) { const ang = i * Math.PI / 3 + Math.PI / 6; h.lineTo(38 + Math.cos(ang) * 14, 37 + Math.sin(ang) * 14); } h.closePath(); h.stroke();
-    for (let i = 0; i < 6; i++) { const ang = i * Math.PI / 3 + Math.PI / 6; h.beginPath(); h.arc(38 + Math.cos(ang) * 21, 37 + Math.sin(ang) * 21, 3.6, 0, 7); h.stroke(); } h.fillStyle = '#fff'; h.beginPath(); h.arc(38, 37, 3.6, 0, 7); h.fill();
-    mono(h, 'LH-6', 68, 44, 19, '#fff', 4, 'left', 700);
-    mono(h, 'AIR-GROUND SEARCH & RESCUE', 170, 26, 10.5, COL.ink2, 3); txt(h, '六合 LH-6', 168, 60, 30, COL.ink, 900); h.font = `900 30px ${FONT}`; const tw = h.measureText('六合 LH-6').width; txt(h, '/', 184 + tw, 60, 30, COL.orange, 500); h.restore(); }
-  // 阶段标签（小号药丸）
-  { const k = on(1); h.save(); h.globalAlpha *= k; const pw = 84, gap = 6, y = 24, x0 = 513;
-    STAGES.forEach((S2, i) => { const x = x0 + i * (pw + gap); const done = i < st, cur = i === st; h.beginPath(); h.roundRect(x, y, pw, 26, 13);
-      if (cur) { h.fillStyle = COL.orange; h.fill(); } else { h.fillStyle = 'rgba(251,250,247,0.72)'; h.fill(); h.strokeStyle = done ? 'rgba(31,169,104,0.55)' : 'rgba(29,30,33,0.12)'; h.lineWidth = 1; h.stroke(); }
-      const c = cur ? '#fff' : done ? COL.green : COL.ink2; h.strokeStyle = c; h.lineWidth = 1.3; h.beginPath(); h.arc(x + 15, y + 13, 5.5, 0, 7); h.stroke();
-      if (done) { h.beginPath(); h.moveTo(x + 12.3, y + 13); h.lineTo(x + 14.6, y + 15.3); h.lineTo(x + 18, y + 10.6); h.stroke(); } else { h.fillStyle = c; h.beginPath(); h.moveTo(x + 13.5, y + 10.2); h.lineTo(x + 17.6, y + 13); h.lineTo(x + 13.5, y + 15.8); h.closePath(); h.fill(); }
-      txt(h, S2.k, x + 27, y + 18, 13, cur ? '#fff' : done ? COL.ink : COL.ink2, cur ? 700 : 500); mono(h, String(i + 1).padStart(2, '0'), x + pw - 9, y + 17, 8.5, cur ? 'rgba(255,255,255,0.8)' : 'rgba(29,30,33,0.32)', 0, 'right'); }); h.restore(); }
-  // 顶栏右侧：状态、运行时间、黄金救援时间
-  { const k = on(2); h.save(); h.globalAlpha *= k; const remain = 72 * 3600 - 340 - T * 60;
-    mono(h, 'STATUS', 1478, 27, 10, COL.ink2, 2); h.fillStyle = COL.green; h.beginPath(); h.arc(1482, 50, 4, 0, 7); h.fill(); txt(h, S.k, 1492, 57, 17, COL.ink, 700);
-    h.fillStyle = 'rgba(29,30,33,0.12)'; h.fillRect(1568, 18, 1, 44); mono(h, 'RUNTIME', 1584, 27, 10, COL.ink2, 2); mono(h, fmtT(T), 1584, 56, 15, COL.ink, 1, 'left', 700);
-    h.fillStyle = 'rgba(29,30,33,0.12)'; h.fillRect(1718, 18, 1, 44); mono(h, 'RESCUE · 72H', 1892, 27, 10, COL.ink2, 2, 'right'); mono(h, fmtT(remain), 1892, 56, 17, COL.orange, 1, 'right', 700); h.restore(); }
+  { const g2 = h.createRadialGradient(0, 1080, 40, 0, 1080, 620); g2.addColorStop(0, 'rgba(242,239,234,0.62)'); g2.addColorStop(1, 'rgba(242,239,234,0)'); h.globalAlpha = a0 * on(0); h.fillStyle = g2; h.fillRect(0, 760, 760, 320); h.globalAlpha = a0; }
   // 左上：电量、旋翼、六足
-  { const k = on(3); const x = 22, w = 230; h.save(); h.globalAlpha *= k; h.translate(-24 * (1 - k), 0);
-    chip(h, x, 92, w, 70, 'POWER · 电量', '01'); const bat = tel.battery ?? 92; txt(h, `${Math.round(bat)}`, x + 14, 148, 28, COL.ink, 800); h.font = `800 28px ${FONT}`; mono(h, '%', x + 18 + h.measureText(`${Math.round(bat)}`).width, 148, 12, COL.ink2, 0); segBar(h, x + 96, 134, 120, 12, 10, bat / 100, (i) => (i < 2 ? COL.orange : COL.green));
-    chip(h, x, 170, w, 70, 'ROTORS · 旋翼', '02'); const rpm = tel.rpm ?? 0; txt(h, `${(rpm / 1000).toFixed(1)}`, x + 14, 226, 28, COL.ink, 800); h.font = `800 28px ${FONT}`; mono(h, 'K RPM', x + 20 + h.measureText(`${(rpm / 1000).toFixed(1)}`).width, 226, 11, COL.ink2, 1);
-    h.strokeStyle = COL.orange; h.lineWidth = 1.6; h.beginPath(); for (let i = 0; i <= 90; i += 2) { const u = i / 90; const amp = clamp(rpm / 6000) * 9; const yy = 214 + Math.sin(u * 22 + T * 9) * amp; i ? h.lineTo(x + 126 + u * 90, yy) : h.moveTo(x + 126, yy); } h.stroke();
-    chip(h, x, 248, w, 70, 'LEGS · 六足', '03'); const legs = tel.legs || [0, 0, 0, 0, 0, 0]; const lst = tel.legState || 'FOLDED'; tag(h, lst, x + w - 12, 275, lst === 'FOLDED' ? COL.ink2 : COL.green, true);
-    legs.forEach((v, i) => { const xx = x + 14 + i * 35; h.fillStyle = 'rgba(29,30,33,0.08)'; h.fillRect(xx, 290, 28, 14); h.fillStyle = i === (tel.hotLeg ?? 1) ? COL.orange : COL.ink; h.fillRect(xx, 290 + 14 * (1 - clamp(v)), 28, 14 * clamp(v)); mono(h, ['L1', 'L2', 'L3', 'R1', 'R2', 'R3'][i], xx + 14, 313, 8.5, COL.ink2, 0, 'center', 600); });
+  { const k = on(1); const x = 22, w = 230, y0 = 22; h.save(); h.globalAlpha *= k; h.translate(-24 * (1 - k), 0);
+    chip(h, x, y0, w, 70, 'POWER · 电量', '01'); const bat = tel.battery ?? 92; txt(h, `${Math.round(bat)}`, x + 14, y0 + 56, 28, COL.ink, 800); h.font = `800 28px ${FONT}`; mono(h, '%', x + 18 + h.measureText(`${Math.round(bat)}`).width, y0 + 56, 12, COL.ink2, 0); segBar(h, x + 96, y0 + 42, 120, 12, 10, bat / 100, (i) => (i < 2 ? COL.orange : COL.green));
+    const y1 = y0 + 78; chip(h, x, y1, w, 70, 'ROTORS · 旋翼', '02'); const rpm = tel.rpm ?? 0; txt(h, `${(rpm / 1000).toFixed(1)}`, x + 14, y1 + 56, 28, COL.ink, 800); h.font = `800 28px ${FONT}`; mono(h, 'K RPM', x + 20 + h.measureText(`${(rpm / 1000).toFixed(1)}`).width, y1 + 56, 11, COL.ink2, 1);
+    h.strokeStyle = COL.orange; h.lineWidth = 1.6; h.beginPath(); for (let i = 0; i <= 90; i += 2) { const u = i / 90; const amp = clamp(rpm / 6000) * 9; const yy = y1 + 44 + Math.sin(u * 22 + T * 9) * amp; i ? h.lineTo(x + 126 + u * 90, yy) : h.moveTo(x + 126, yy); } h.stroke();
+    const y2 = y1 + 78; chip(h, x, y2, w, 70, 'LEGS · 六足', '03'); const legs = tel.legs || [0, 0, 0, 0, 0, 0]; const lst = tel.legState || 'FOLDED'; tag(h, lst, x + w - 12, y2 + 27, lst === 'FOLDED' ? COL.ink2 : COL.green, true);
+    legs.forEach((v, i) => { const xx = x + 14 + i * 35; h.fillStyle = 'rgba(29,30,33,0.08)'; h.fillRect(xx, y2 + 42, 28, 14); h.fillStyle = i === (tel.hotLeg ?? 1) ? COL.orange : COL.ink; h.fillRect(xx, y2 + 42 + 14 * (1 - clamp(v)), 28, 14 * clamp(v)); mono(h, ['L1', 'L2', 'L3', 'R1', 'R2', 'R3'][i], xx + 14, y2 + 65, 8.5, COL.ink2, 0, 'center', 600); });
     h.restore(); }
   // 右上：飞行、生命信号
-  { const k = on(4); const x = 1668, w = 230; h.save(); h.globalAlpha *= k; h.translate(24 * (1 - k), 0);
-    chip(h, x, 92, w, 70, 'FLIGHT · 飞行', '04'); mono(h, 'ALT', x + 14, 128, 9.5, COL.ink2, 2); mono(h, `${(tel.alt ?? 0).toFixed(1)} M`, x + 14, 150, 16, COL.ink, 0, 'left', 700); mono(h, 'SPEED', x + 120, 128, 9.5, COL.ink2, 2); mono(h, `${(tel.speed ?? 0).toFixed(1)} M/S`, x + 120, 150, 16, COL.ink, 0, 'left', 700);
-    chip(h, x, 170, w, 96, 'LIFE SIGNALS · 生命信号', '05'); const found = tel.found ?? 0, saved = tel.saved ?? 0; txt(h, `${found}`, x + 14, 224, 30, found ? COL.red : COL.ink, 800); h.font = `800 30px ${FONT}`; mono(h, '/ 8', x + 20 + h.measureText(`${found}`).width, 224, 12, COL.ink2, 1); mono(h, `${saved}`, x + w - 14, 222, 18, COL.green, 0, 'right', 700); mono(h, 'SAVED', x + w - 40, 222, 9, COL.ink2, 1, 'right');
-    for (let i = 0; i < 8; i++) { const xx = x + 14 + i * 25.5, yy = 236; const isS = i < saved, isF = i < found; h.fillStyle = isS ? COL.green : isF ? COL.red : 'rgba(29,30,33,0.08)'; h.beginPath(); h.roundRect(xx, yy, 21, 18, 4); h.fill(); mono(h, String(i + 1), xx + 10.5, yy + 13, 9, isS || isF ? '#fff' : COL.ink2, 0, 'center', 700); }
+  { const k = on(2); const x = 1668, w = 230, y0 = 22; h.save(); h.globalAlpha *= k; h.translate(24 * (1 - k), 0);
+    chip(h, x, y0, w, 70, 'FLIGHT · 飞行', '04'); mono(h, 'ALT', x + 14, y0 + 36, 9.5, COL.ink2, 2); mono(h, `${(tel.alt ?? 0).toFixed(1)} M`, x + 14, y0 + 58, 16, COL.ink, 0, 'left', 700); mono(h, 'SPEED', x + 120, y0 + 36, 9.5, COL.ink2, 2); mono(h, `${(tel.speed ?? 0).toFixed(1)} M/S`, x + 120, y0 + 58, 16, COL.ink, 0, 'left', 700);
+    const y1 = y0 + 78; chip(h, x, y1, w, 96, 'LIFE SIGNALS · 生命信号', '05'); const found = tel.found ?? 0, saved = tel.saved ?? 0; txt(h, `${found}`, x + 14, y1 + 54, 30, found ? COL.red : COL.ink, 800); h.font = `800 30px ${FONT}`; mono(h, '/ 8', x + 20 + h.measureText(`${found}`).width, y1 + 54, 12, COL.ink2, 1); mono(h, `${saved}`, x + w - 14, y1 + 52, 18, COL.green, 0, 'right', 700); mono(h, 'SAVED', x + w - 40, y1 + 52, 9, COL.ink2, 1, 'right');
+    for (let i = 0; i < 8; i++) { const xx = x + 14 + i * 25.5, yy = y1 + 66; const isS = i < saved, isF = i < found; h.fillStyle = isS ? COL.green : isF ? COL.red : 'rgba(29,30,33,0.08)'; h.beginPath(); h.roundRect(xx, yy, 21, 18, 4); h.fill(); mono(h, String(i + 1), xx + 10.5, yy + 13, 9, isS || isF ? '#fff' : COL.ink2, 0, 'center', 700); }
     h.restore(); }
-  // 底部：阶段大字（左下）、细进度条
-  { const k = on(5); h.save(); h.globalAlpha *= k; const w2 = s.word || S.word, sub = s.sub || S.sub; const ws = smooth(clamp((T - S.t0) / 0.35));
-    h.save(); h.beginPath(); h.rect(0, 930, 900, 104); h.clip(); h.translate(0, 22 * (1 - ws)); mono(h, `MISSION STAGE ${String(st + 1).padStart(2, '0')}`, 30, 962, 10.5, COL.ink2, 3); txt(h, w2, 26, 1004, 40, COL.orange, 900); mono(h, sub, 30, 1024, 10.5, COL.ink2, 2.5); h.restore();
-    const lx0 = 30, lx1 = 1890, y = 1050, prog = clamp(T / 112.4); h.fillStyle = 'rgba(29,30,33,0.14)'; h.fillRect(lx0, y, lx1 - lx0, 2); h.fillStyle = COL.orange; h.fillRect(lx0, y, (lx1 - lx0) * prog, 2.5);
-    STAGES.forEach((S2, i) => { const xx = lx0 + (lx1 - lx0) * S2.t0 / 112.4; h.fillStyle = i <= st ? COL.orange : 'rgba(29,30,33,0.35)'; h.fillRect(xx, y - 4, 1.5, 10); });
-    h.fillStyle = '#fff'; h.strokeStyle = COL.orange; h.lineWidth = 2; h.beginPath(); h.arc(lx0 + (lx1 - lx0) * prog, y + 1, 5.5, 0, 7); h.fill(); h.stroke();
-    mono(h, `${fmtT(T).slice(3)} / 01:52`, lx1, 1072, 10, COL.ink2, 2, 'right'); mono(h, `VIEW · ${s.view || '沙盘 TABLE'}`, lx1, 1036, 10, COL.ink2, 3, 'right'); mono(h, 'MISSION SIMULATOR · 六合 LH-6', lx0, 1072, 10, COL.ink2, 3); h.restore(); }
+  // 左下：阶段标题
+  { const k = on(0); h.save(); h.globalAlpha *= k; const w2 = s.word || S.word, sub = s.sub || S.sub; const ws = smooth(clamp((T - S.t0) / 0.35));
+    h.beginPath(); h.rect(0, 960, 900, 120); h.clip(); h.translate(0, 22 * (1 - ws)); mono(h, `MISSION STAGE ${String(st + 1).padStart(2, '0')}`, 34, 990, 10.5, COL.ink2, 3); txt(h, w2, 30, 1034, 42, COL.orange, 900); mono(h, sub, 34, 1056, 10.5, COL.ink2, 2.5); h.restore(); }
   h.restore();
 }
 // —— 界面入口：s.full 0 = 紧凑（普通镜头），1 = 完整（指挥中心大屏），中间值交叉淡化 ——

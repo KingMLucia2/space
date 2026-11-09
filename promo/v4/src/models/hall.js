@@ -77,7 +77,7 @@ export class Hall {
       for (const [x, y, n] of N) { c.fillStyle = '#12161b'; c.strokeStyle = '#5fd4ff'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 18, 0, 7); c.fill(); c.stroke(); c.fillStyle = '#f4f2ee'; c.font = `600 15px ${FONT}`; c.textAlign = 'center'; c.fillText(n, x, y + 42); c.textAlign = 'left'; } this.side[3].t.needsUpdate = true; }
     // 操作员（坐姿、敲键盘）与站立的指挥员；o.cheer 时后排几个人举手
     OPS.forEach(([x, z], i) => drawHuman({ pos: hallPt([x, z > -1 ? 0.3 : 0, z]), heading: Math.PI, sit: true, typing: true, phase: t * 6 + i * 1.7 }));
-    drawHuman({ pos: hallPt([2.3, 0, -6.6]), heading: Math.PI + 0.25, phase: 0, run: 0, armsUp: !!o.point, noHelm: true });
+    drawHuman({ pos: hallPt([5.6, 0, -6.9]), heading: Math.PI + 0.45, phase: 0, run: 0, armsUp: !!o.point, noHelm: true });
     drawHuman({ pos: hallPt([-7.6, 0, -7.2]), heading: Math.PI - 0.6, phase: 0, run: 0, noHelm: true });
     return this.g;
   }

@@ -22,8 +22,16 @@ export class BaseStation {
   constructor() {
     const g = this.g = new THREE.Group(); const { w, d, h } = DOCK;
     g.add(mesh(geo('dkSlab', () => rbox(w + 2.4, 0.3, d + 2.4, 0.06)), MW2)); g.children[0].position.y = -0.1;
-    const body = mesh(geo('dkBody', () => rbox(w, h, d, 0.12)), MW); body.position.y = h / 2; g.add(body);
-    g.add(mesh(geo('dkBand', () => merged([[rbox(w + 0.02, 0.1, d + 0.02, 0.04), [0, 0.92, 0]]])), M.orange));
+    // 舱体是空心的：四面墙＋底板，顶部是舱口（原来是实心盒子，舱盖打开后仍有一层白色顶面，平台和结合体升降时会穿过它）
+    const TW = 0.16, bay = w - 2 * TW;
+    g.add(mesh(geo('dkBody2', () => merged([[rbox(w, h, TW, 0.04), [0, h / 2, d / 2 - TW / 2]], [rbox(w, h, TW, 0.04), [0, h / 2, -d / 2 + TW / 2]], [rbox(TW, h, d - 2 * TW + 0.04, 0.04), [w / 2 - TW / 2, h / 2, 0]], [rbox(TW, h, d - 2 * TW + 0.04, 0.04), [-w / 2 + TW / 2, h / 2, 0]],
+      [rbox(w - 0.02, 0.14, d - 0.02, 0.03), [0, 0.07, 0]], ...[[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([sx, sz]) => [rbox(TW, h + 0.004, TW, 0.07), [sx * (w / 2 - TW / 2), h / 2, sz * (d / 2 - TW / 2)]])])), MW));
+    const linerM = std({ color: '#3a3e45', roughness: 0.7, metalness: 0.2 });
+    g.add(mesh(geo('dkLiner', () => merged([[new THREE.BoxGeometry(bay, h - 0.16, 0.01), [0, h / 2 + 0.06, bay / 2 - 0.006]], [new THREE.BoxGeometry(bay, h - 0.16, 0.01), [0, h / 2 + 0.06, -bay / 2 + 0.006]], [new THREE.BoxGeometry(0.01, h - 0.16, bay), [bay / 2 - 0.006, h / 2 + 0.06, 0]], [new THREE.BoxGeometry(0.01, h - 0.16, bay), [-bay / 2 + 0.006, h / 2 + 0.06, 0]], [new THREE.BoxGeometry(bay, 0.01, bay), [0, 0.145, 0]],
+      ...[-1, 1].flatMap((sd) => [[new THREE.BoxGeometry(0.06, h - 0.2, 0.012), [sd * 0.9, h / 2 + 0.06, bay / 2 - 0.014]], [new THREE.BoxGeometry(0.06, h - 0.2, 0.012), [sd * 0.9, h / 2 + 0.06, -bay / 2 + 0.014]]])])), linerM, false));
+    g.add(mesh(geo('dkBay', () => merged([[cyl(0.26, 0.3, 0.5, 24), [0, 0.39, 0]]])), M.dark)); // 升降柱底座
+    this.column = mesh(geo('dkCol', () => { const c = cyl(0.17, 0.17, 1, 20); c.translate(0, 0.5, 0); return c; }), M.chrome); this.column.position.y = 0.6; g.add(this.column);
+    g.add(mesh(geo('dkBand', () => merged([[rbox(w + 0.02, 0.1, 0.03, 0.012), [0, 0.92, d / 2 + 0.008]], [rbox(w + 0.02, 0.1, 0.03, 0.012), [0, 0.92, -d / 2 - 0.008]], [rbox(0.03, 0.1, d + 0.02, 0.012), [w / 2 + 0.008, 0.92, 0]], [rbox(0.03, 0.1, d + 0.02, 0.012), [-w / 2 - 0.008, 0.92, 0]]])), M.orange));
     g.add(mesh(geo('dkVents', () => { const L = []; for (const sd of [-1, 1]) for (let k = 0; k < 5; k++) L.push([rbox(0.5, 0.04, 0.03, 0.01), [sd * 0.9, 0.45 + k * 0.08, d / 2 + 0.01]]); return merged(L); }), M.black));
     this.lightMat = new THREE.MeshBasicMaterial({ color: '#5fd4ff' }); const lb = mesh(geo('dkLight', () => rbox(w * 0.8, 0.05, 0.03, 0.01)), this.lightMat, false); lb.position.set(0, h - 0.12, d / 2 + 0.01); g.add(lb);
     // 平台
@@ -52,8 +60,8 @@ export class BaseStation {
   // pos 世界坐标；open 0~1 舱盖；lift 0~1 平台；lights 0~1
   update(pos, open, lift, t, lights = 1) {
     const g = this.g; g.visible = true; setPose(g, pos, DOCK.ry);
-    this.plat.position.y = DOCK.platLow + (DOCK.platHigh - DOCK.platLow) * smooth(lift); this.plat.visible = open > 0.02 || lift > 0.02;
-    const a = smooth(open) * 2.6; for (const L of this.lids) L.piv.rotation.z = -L.sd * a; // 两扇舱盖绕外侧上沿铰链向上、向外翻开（原来方向反了，会翻进舱体）
+    this.plat.position.y = DOCK.platLow + (DOCK.platHigh - DOCK.platLow) * smooth(lift); this.plat.visible = true;
+    const a = smooth(open) * 1.95; for (const L of this.lids) L.piv.rotation.z = -L.sd * a; this.column.scale.y = Math.max(0.05, this.plat.position.y - 0.04 - 0.6); // 两扇舱盖绕外侧上沿铰链向上、向外翻开（原来方向反了，会翻进舱体）
     this.cups.rotation.y = t * 3.1; this.lightMat.color.set(lights > 0.5 ? '#7fe0ff' : '#5c6e78');
     const bl = lights * (Math.sin(t * 6) > 0.3 ? 1 : 0.25); this.beaconGlow.material.opacity = 0.7 * bl; this.beacon.material.color.set(bl > 0.5 ? '#7fe0ff' : '#3a6f85');
     return g;
@@ -173,7 +181,7 @@ export class Helicopter {
     const g = this.g; g.visible = true; setPose(g, s.pos, s.heading || 0, s.pitch || 0, s.roll || 0); const sp = s.speed ?? 1;
     this.rotor.rotation.y = s.rotor || 0; const bl = smooth((sp - 0.3) / 0.4); this.blades.visible = bl < 0.95; this.disc.visible = bl > 0.05; this.disc.material.opacity = bl; this.tail.material.opacity = bl; this.fan.rotation.x = (s.rotor || 0) * 3; this.fan.visible = bl < 0.9;
     this.doorLeaf.position.z = -1.42 * smooth(s.door || 0);
-    this.hoist.visible = s.cable !== undefined; this.cable.visible = s.cable !== undefined && s.cable > 0.05; if (this.cable.visible) span(this.cable, [1.78, 0.9, 0.4], [1.78, 0.9 - s.cable, 0.4], 1);
+    this.hoist.visible = s.cable !== undefined; this.cable.visible = s.cable !== undefined && s.cable > 0.05; if (this.cable.visible) { let end = [1.78, 0.9 - s.cable, 0.4]; if (s.cableTo) { g.updateMatrixWorld(); end = V(...s.cableTo).applyMatrix4(g.matrixWorld.clone().invert()).toArray(); } span(this.cable, [1.78, 0.9, 0.4], end, 1); } // cableTo：吊索末端接到世界坐标里的吊环
     this.cone.visible = !!s.search; return g;
   }
   world(p) { this.g.updateMatrixWorld(); return V(...p).applyMatrix4(this.g.matrixWorld).toArray(); }

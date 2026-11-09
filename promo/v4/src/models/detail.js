@@ -145,9 +145,9 @@ function buildCamp(out, root, mats) {
   const add = (k, g) => L.push([k, g]); const B = (k, p, sz, col, rot) => add(k, part(G.box, p, rot, sz, col)); const Cy = (k, p, r, h, col, rot, g = G.cyl12) => add(k, part(g, p, rot, [r, h, r], col));
   // 混凝土平台（厚 1.6 米，盖住山顶的起伏）与地面标线
   B('matte', [0, -0.78, -2], [32, 1.6, 28], lin('#e4e0d9')); B('matte', [0, 0.02, 12.2], [32.4, 0.08, 0.4], lin('#d8d3ca'));
-  for (const [x0, z0, x1, z1] of [[-15, -15.6, 15, -15.6], [-15, 11.6, -3.5, 11.6], [3.5, 11.6, 15, 11.6], [-15.6, -15, -15.6, 11], [15.6, -15, 15.6, 11]]) { const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2; B('decal', [cx, 0.012, cz], [Math.max(0.12, Math.abs(x1 - x0)), 0.01, Math.max(0.12, Math.abs(z1 - z0))], C_.orange); }
-  for (const x of [-1.1, 1.1]) B('decal', [x, 0.012, 7.8], [0.1, 0.01, 7.6], C_.orange); // 大门到基站的人行通道
-  for (let k = 0; k < 7; k++) B('decal', [-9.2 + k * 0.55, 0.012, -6.8], [0.22, 0.01, 2.6], C_.orange, [0, 0.6, 0]); // 发电机前的斜纹警示区
+  for (const [x0, z0, x1, z1] of [[-15, -15.6, 15, -15.6], [-15, 11.6, -3.5, 11.6], [3.5, 11.6, 15, 11.6], [-15.6, -15, -15.6, 11], [15.6, -15, 15.6, 11]]) { const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2; B('decal', [cx, 0.027, cz], [Math.max(0.12, Math.abs(x1 - x0)), 0.01, Math.max(0.12, Math.abs(z1 - z0))], C_.orange); }
+  for (const x of [-1.1, 1.1]) B('decal', [x, 0.027, 7.8], [0.1, 0.01, 7.6], C_.orange); // 大门到基站的人行通道
+  for (let k = 0; k < 7; k++) B('decal', [-9.2 + k * 0.55, 0.027, -6.8], [0.22, 0.01, 2.6], C_.orange, [0, 0.6, 0]); // 发电机前的斜纹警示区
   // 两个集装箱（白色、竖向波纹、橙色腰线、端门）
   for (const [x, z, a] of [[-7.5, -11.5, 0], [6.8, -11.8, 0.04]]) { const cm = mat4([x, 0, z], [0, a, 0]); const P = [];
     P.push(['matte', part(G.box, [0, 1.3, 0], 0, [6.06, 2.6, 2.44], C_.cont)]); for (let u = -2.8; u <= 2.81; u += 0.4) for (const sd of [-1, 1]) P.push(['matte', part(G.box, [u, 1.3, sd * 1.23], 0, [0.12, 2.4, 0.04], C_.cont2)]);

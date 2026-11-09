@@ -121,7 +121,7 @@ export class Hexacopter {
     }
     dyn(g);
   }
-  // s: { pos, heading, pitch, roll, rot:{angle,speed}, latch(0 锁~1 开), gear(1 放下~0 收起), explode, ring(灯环亮度), t, strobe, scale }
+  // s: { pos, heading, pitch, roll, rot:{angle,speed}, latch(0 锁~1 开), gear(1 放下~0 收起，默认收起), explode, ring(灯环亮度), t, strobe, scale }
   update(s) {
     const g = this.g; g.visible = true; setPose(g, s.pos, s.heading || 0, s.pitch || 0, s.roll || 0, s.scale || 1);
     const e = s.explode || 0, t = s.t || 0; const sp = s.rot ? s.rot.speed : 0, ang = s.rot ? s.rot.angle : 0;
@@ -136,7 +136,7 @@ export class Hexacopter {
       A.bm.opacity = 1 - 0.88 * blur; A.blades.visible = A.bm.opacity > 0.02; A.disc.visible = blur > 0.02; A.disc.material.opacity = blur; A.disc.rotation.y = -ang * 0.013 * (i % 2 ? 1 : -1);
       A.tip.visible = blur > 0.02; A.tip.material.opacity = 0.7 * blur;
     });
-    const gy = -0.36 * e, gr = 1 - (s.gear ?? 1); const sy = lerp(-0.62, -0.17, gr), sx = lerp(0.62, 0.86, gr);
+    const gy = -0.36 * e, gr = 1 - (s.gear ?? 0); /* 默认收起：挂着六足机器人时放下的起落架会穿过它收起的腿 */ const sy = lerp(-0.62, -0.17, gr), sx = lerp(0.62, 0.86, gr);
     for (const P of this.gearParts) { const sd = P.sd; const top = [sd * 0.22, -0.11 + gy, 0];
       P.knuckle.position.set(...top);
       P.struts.forEach((m, k) => { const zz = k ? -0.17 : 0.17; span(m, [top[0], top[1], zz * 0.6], [sd * sx, sy + gy, zz * 1.4]); });

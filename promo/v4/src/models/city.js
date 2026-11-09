@@ -7,6 +7,7 @@ import { THREE, scene, mkCanvas, COL, dyn } from '../engine.js';
 import { M, mesh, rbox } from '../mats.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CITY, terrainHeight, buildCity, SMOKE, VEH } from './cityData.js';
+import { buildCityDetail, buildOutskirts } from './detail.js';
 import { mulberry32, clamp, lerp, smooth, makeNoise2D } from '../util.js';
 export { CITY, terrainHeight, SMOKE };
 
@@ -66,11 +67,16 @@ export function buildCityMeshes() {
   for (const c of C.cloud) { const a = c.arr; const step = a.length / 3 > 2000 ? 5 : 4; for (let i = 0; i < a.length / 3; i += step) { const s = 0.18 + Math.pow(R(), 2.2) * 0.9; const shade = 0.78 + R() * 0.17; T2.add(MAT.rubble, a[i * 3], a[i * 3 + 2], bake(R() < 0.3 ? ROCK : TET, [a[i * 3], a[i * 3 + 1] + s * 0.3, a[i * 3 + 2]], [R() * 6, R() * 6, R() * 6], [s * (0.8 + R() * 0.6), s * (0.5 + R() * 0.4), s * (0.8 + R() * 0.6)], [shade, shade * 0.99, shade * 0.97])); } }
   for (const s of C.slabs) T2.add(MAT.slab, s.x, s.z, bake(BOX, [s.x, s.y, s.z], [s.rx, s.ry, s.rz], [s.w, 0.25, s.d]));
   for (const r of C.rebar) { const a = V(r[0], r[1], r[2]), b = V(r[3], r[4], r[5]); const L = a.distanceTo(b); const q = new THREE.Quaternion().setFromUnitVectors(V(0, 1, 0), b.clone().sub(a).normalize()); const g = BOX.clone().toNonIndexed(); g.deleteAttribute('uv'); g.applyMatrix4(new THREE.Matrix4().compose(a.clone().add(b).multiplyScalar(0.5), q, V(0.05, L, 0.05))); T2.add(MAT.rebar, r[0], r[2], g); }
-  const carCols = [[0.97, 0.97, 0.96], [0.82, 0.83, 0.85], [0.62, 0.64, 0.68], [0.75, 0.36, 0.3], [0.36, 0.45, 0.58]];
-  for (const k of C.cars) { const col = carCols[Math.floor(R() * carCols.length)]; T2.add(MAT.car, k.x, k.z, bake(BOX, [k.x, 0.75 * k.crush / 2 + 0.15, k.z], [0, k.ry, 0], [4.2, 0.75 * k.crush, 1.8], col)); const off = new THREE.Vector3(-0.3, 0, 0).applyAxisAngle(V(0, 1, 0), k.ry); T2.add(MAT.car, k.x, k.z, bake(BOX, [k.x + off.x, 0.75 * k.crush + 0.15 + 0.3 * k.crush, k.z + off.z], [0, k.ry, 0], [2.2, 0.6 * k.crush, 1.6], [0.2, 0.22, 0.25])); }
-  const CONE = new THREE.ConeGeometry(1, 1, 7), TRUNK = new THREE.CylinderGeometry(0.15, 0.2, 1, 6);
-  for (const [x, y, z, s] of C.trees) { T.add(MAT.tree, x, z, bake(CONE, [x, y + 3.2 * s, z], [0, 0, 0], [1.9 * s, 4.2 * s, 1.9 * s])); T.add(MAT.slab, x, z, bake(TRUNK, [x, y + 0.7 * s, z], [0, 0, 0], [s, 1.4 * s, s])); }
   for (const pts of C.cracks) for (let i = 0; i + 1 < pts.length; i++) { const a = pts[i], b = pts[i + 1]; const L = Math.hypot(b[0] - a[0], b[2] - a[2]); const ang = Math.atan2(b[0] - a[0], b[2] - a[2]); T2.add(MAT.crack, a[0], a[2], bake(BOX, [(a[0] + b[0]) / 2, 0.03, (a[2] + b[2]) / 2], [0, ang, 0], [0.35 + 0.25 * Math.sin(i), 0.02, L])); }
+  // 场景细节（人行道、路灯、行道树、红绿灯、斑马线、汽车、街面碎屑、楼顶设备、广场街具；城外公路、山林、塌方警戒）
+  const DM = { matte: animated(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.86 }), GROW_V), gloss: animated(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.34 }), GROW_V),
+    metal: animated(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.5 }), GROW_V), glass: animated(new THREE.MeshStandardMaterial({ color: '#2b3139', roughness: 0.12, metalness: 0.4 }), GROW_V),
+    decal: animated(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), GROW_V), rubble: MAT.rubble };
+  const DO = { matte: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.86 }), gloss: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.34 }), metal: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.5 }),
+    glass: DM.glass, decal: DM.decal, rubble: MAT.rubble };
+  const dmats = { plaza: (map) => new THREE.MeshStandardMaterial({ map, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), sign: (map) => new THREE.MeshStandardMaterial({ map, roughness: 0.6 }) };
+  buildCityDetail(C, (k, x, z, g, cast) => (cast ? T : T2).add(DM[k], x, z, g), ROOT, dmats);
+  buildOutskirts(C, (k, x, z, g, cast) => (cast ? T : T2).add(DO[k], x, z, g), ROOT, dmats);
   T.build(ROOT); T2.build(ROOT, false);
   // 地面：城区道路贴图
   const gc = mkCanvas(2048, 2048), g = gc.getContext('2d'); const S = 2048 / 460, X = (x) => (x + 230) * S;
@@ -87,7 +93,7 @@ export function buildCityMeshes() {
   for (let i = 0; i < tp.count; i++) tp.setY(i, terrainHeight(tp.getX(i), tp.getZ(i)) - (Math.abs(tp.getX(i)) < 231 && Math.abs(tp.getZ(i)) < 231 ? 0.05 : 0)); tg.computeVertexNormals();
   const tm = new THREE.MeshStandardMaterial({ color: '#ece8e1', roughness: 0.95 });
   tm.onBeforeCompile = (sh) => { sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP2;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWP2 = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP2;').replace('#include <color_fragment>', '#include <color_fragment>\nfloat hh = vWP2.y / 4.0; float fw = fwidth(hh); float ln = 1.0 - smoothstep(0.0, fw * 1.2, abs(fract(hh + 0.5) - 0.5)); diffuseColor.rgb *= 1.0 - 0.22 * ln * step(0.3, vWP2.y);'); };
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP2;').replace('#include <color_fragment>', '#include <color_fragment>\nfloat hh = vWP2.y / 4.0; float fw = fwidth(hh); float ln = 1.0 - smoothstep(0.0, fw * 1.2, abs(fract(hh + 0.5) - 0.5)); diffuseColor.rgb *= 1.0 - 0.22 * ln * step(0.3, vWP2.y); float pn = sin(vWP2.x * 0.031 + sin(vWP2.z * 0.023) * 2.0) * sin(vWP2.z * 0.027 + sin(vWP2.x * 0.019) * 2.0) + 0.5 * sin(vWP2.x * 0.11 + vWP2.z * 0.07) * sin(vWP2.z * 0.13 - vWP2.x * 0.05); diffuseColor.rgb *= 0.975 + 0.03 * pn;'); };
   const terr = new THREE.Mesh(tg, tm); terr.receiveShadow = true; ROOT.add(terr);
   // 通往塌方路段的公路（沿地形）
   const rp = [], rn = []; for (let x = 207; x < 1100; x += 6) { const y0 = terrainHeight(x, 0) + 0.08, y1 = terrainHeight(x + 6, 0) + 0.08; rp.push(x, y0, -5.5, x + 6, y1, -5.5, x + 6, y1, 5.5, x, y0, -5.5, x + 6, y1, 5.5, x, y0, 5.5); for (let k = 0; k < 6; k++) rn.push(0, 1, 0); }

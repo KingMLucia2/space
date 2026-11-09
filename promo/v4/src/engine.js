@@ -13,6 +13,7 @@ import { VerticalTiltShiftShader } from 'three/addons/shaders/VerticalTiltShiftS
 import { HorizontalBlurShader } from 'three/addons/shaders/HorizontalBlurShader.js';
 import { VerticalBlurShader } from 'three/addons/shaders/VerticalBlurShader.js';
 
+import { terrainHeight } from './models/cityData.js';
 export { THREE };
 export const W = 1920, H = 1080;
 export const COL = { bg: '#f2efea', bg2: '#e7e2da', ink: '#1d1e21', ink2: '#5b5d63', line: '#c9c4bb', orange: '#ec4e26', red: '#e5322d', green: '#1fa968', amber: '#f59a23', white: '#f6f4f0' };
@@ -23,7 +24,7 @@ export const mkCanvas = mk;
 export const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(1); renderer.setSize(W, H, false);
 renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.localClippingEnabled = true; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 export const glCanvas = renderer.domElement;
 
 export const scene = new THREE.Scene();
@@ -106,12 +107,15 @@ const POOLS = [];
 // 对象池：同一帧里需要多个同类模型时用（例如几个人物、几架无人机）
 export function pool(factory) { const p = { items: [], used: 0, get() { let o = this.items[this.used]; if (!o) { o = factory(); this.items.push(o); } this.used++; return o; } }; POOLS.push(p); return p; }
 export const FRAME = { t: 0 };
+export function hideDyn() { for (const o of DYN) o.visible = false; } // 一帧里画两遍时（大屏内容→大厅）在两遍之间清场
 export function beginFrame() {
   for (const o of DYN) o.visible = false; for (const p of POOLS) p.used = 0;
   FOG.near = 60; FOG.far = 900; scene.background = BG_TEX; scene.environmentIntensity = 0.9; hemi.intensity = 0.55; sun.intensity = 2.0; fill.intensity = 0.45;
   cam.near = 0.05; cam.clearViewOffset(); cam.updateProjectionMatrix(); setLook('studio'); CS.size = 6; CS.center = [0, 0]; CS.y = 0; CS.opacity = 0.55; TILT.r = 0.5; TILT.k = 1;
 }
 export function renderGL() {
+  // 近裁剪面随相机离地高度自适应（高空俯视时提高深度精度，避免地面贴花闪烁）；镜头里手动设过 near 的不动
+  if (cam.near === 0.05) { const n = Math.min(3, Math.max(0.05, (cam.position.y - terrainHeight(cam.position.x, cam.position.z)) * 0.006)); if (n > 0.05) { cam.near = n; cam.updateProjectionMatrix(); } }
   contactShadows();
   tiltH.enabled = tiltV.enabled = TILT.on; if (TILT.on) { tiltH.uniforms.h.value = 1.6 * TILT.k / W; tiltV.uniforms.v.value = 1.6 * TILT.k / H; tiltH.uniforms.r.value = tiltV.uniforms.r.value = TILT.r; }
   composer.render();

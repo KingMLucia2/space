@@ -4,6 +4,7 @@ import { M, mesh, rbox, cyl, lathe, span, setPose, glowSprite } from '../mats.js
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clamp, lerp, smooth, mulberry32 } from '../util.js';
 import { terrainHeight } from './cityData.js';
+import { airportDetail } from './detail.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 function merged(list) { return mergeGeometries(list.map(([g, p = [0, 0, 0], r = [0, 0, 0], s = [1, 1, 1]]) => { const c = g.index ? g.toNonIndexed() : g.clone(); c.applyMatrix4(new THREE.Matrix4().compose(V(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(...r, 'YXZ')), V(...s))); for (const k of Object.keys(c.attributes)) if (!['position', 'normal', 'uv'].includes(k)) c.deleteAttribute(k); return c; }), false); }
@@ -35,6 +36,15 @@ export class BaseStation {
     // 气象杆与警示灯
     const mast = mesh(geo('dkMast', () => merged([[cyl(0.03, 0.04, 2.6, 10), [w / 2 + 0.35, 1.3, -d / 2 + 0.3]], [new THREE.SphereGeometry(0.06, 10, 8), [w / 2 + 0.35, 2.65, -d / 2 + 0.3]]])), M.chrome); g.add(mast);
     this.cups = new THREE.Group(); this.cups.position.set(w / 2 + 0.35, 2.7, -d / 2 + 0.3); g.add(this.cups); for (let k = 0; k < 3; k++) { const a = k * 2.094; const arm = mesh(geo('dkCup', () => merged([[rbox(0.24, 0.015, 0.015, 0.004), [0.12, 0, 0]], [new THREE.SphereGeometry(0.035, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), [0.24, 0, 0], [Math.PI / 2, 0, 0]]])), M.white); arm.rotation.y = a; this.cups.add(arm); }
+    // 细节：深色底座、侧面检修门、控制屏、背面两根鞭状天线、检修踏步、线缆护管
+    g.add(mesh(geo('dkPlinth', () => rbox(w + 0.12, 0.14, d + 0.12, 0.03)), M.black)); g.children[g.children.length - 1].position.y = 0.07;
+    g.add(mesh(geo('dkDoor', () => merged([[rbox(0.03, 1.15, 0.95, 0.01), [w / 2 + 0.012, 0.85, 0.4]], [rbox(0.04, 0.05, 0.22, 0.01), [w / 2 + 0.04, 0.85, 0.05]]])), M.shell2));
+    g.add(mesh(geo('dkDoorL', () => merged([[rbox(0.02, 1.2, 0.02, 0.005), [w / 2 + 0.02, 0.85, 0.89]], [rbox(0.02, 1.2, 0.02, 0.005), [w / 2 + 0.02, 0.85, -0.09]], [rbox(0.02, 0.02, 1.0, 0.005), [w / 2 + 0.02, 1.45, 0.4]], [rbox(0.02, 0.02, 1.0, 0.005), [w / 2 + 0.02, 0.25, 0.4]]])), M.dark));
+    const scr = mesh(geo('dkScr', () => rbox(0.46, 0.26, 0.02, 0.01)), new THREE.MeshBasicMaterial({ color: '#7fdcff' }), false); scr.position.set(w / 2 - 0.55, 0.62, d / 2 + 0.012); g.add(scr);
+    g.add(mesh(geo('dkScrF', () => rbox(0.56, 0.36, 0.02, 0.01)), M.black)); g.children[g.children.length - 1].position.set(w / 2 - 0.55, 0.62, d / 2 + 0.004);
+    g.add(mesh(geo('dkAnt', () => merged([[cyl(0.012, 0.02, 1.4, 8), [-w / 2 + 0.2, h + 0.7, -d / 2 + 0.2]], [cyl(0.012, 0.02, 1.0, 8), [-w / 2 + 0.45, h + 0.5, -d / 2 + 0.2]], [cyl(0.05, 0.05, 0.08, 10), [-w / 2 + 0.2, h + 0.04, -d / 2 + 0.2]]])), M.black));
+    g.add(mesh(geo('dkStep', () => merged([[rbox(0.5, 0.2, 0.9, 0.02), [w / 2 + 0.3, 0.1, -0.9]], [rbox(0.25, 0.2, 0.9, 0.02), [w / 2 + 0.17, 0.3, -0.9]]])), M.dark));
+    g.add(mesh(geo('dkPipe', () => merged([[cyl(0.05, 0.05, 1.2, 10), [-0.6, 0.6, -d / 2 - 0.06]], [cyl(0.05, 0.05, 1.2, 10), [-0.42, 0.6, -d / 2 - 0.06]], [rbox(0.4, 0.06, 0.12, 0.02), [-0.51, 1.18, -d / 2 - 0.06]]])), M.dark));
     this.beacon = mesh(geo('dkBeacon', () => new THREE.SphereGeometry(0.06, 12, 8)), new THREE.MeshBasicMaterial({ color: '#5fd4ff' }), false); this.beacon.position.set(-w / 2 + 0.1, h + 0.08, d / 2 - 0.3); g.add(this.beacon);
     this.beaconGlow = glowSprite('#5fd4ff', 0.6, 0.6, false); this.beaconGlow.position.copy(this.beacon.position); g.add(this.beaconGlow);
     dyn(g);
@@ -82,42 +92,93 @@ export function drawVehicles(t) { VEH_LIST.forEach(([x, z, ry, kind], i) => (kin
 // —— 救援直升机：白色机身＋橙色色带、深色座舱玻璃、尾梁与橙色垂尾、滑橇、主旋翼（桨叶＋模糊桨盘）、尾桨、左侧滑门（暖光机舱）、右侧绞车吊臂与钢缆、探照灯 ——
 const heliDisc = mkCanvas(128, 128); { const g = heliDisc.getContext('2d'); const gr = g.createRadialGradient(64, 64, 6, 64, 64, 64); gr.addColorStop(0, 'rgba(30,30,32,0)'); gr.addColorStop(0.2, 'rgba(30,30,32,0.12)'); gr.addColorStop(0.9, 'rgba(30,30,32,0.2)'); gr.addColorStop(1, 'rgba(30,30,32,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); }
 const HELI_DISC = tex(heliDisc);
+// 机身放样：沿 z 的关键截面（半宽 w、顶高 t、底深 b、中心高 yc），截面为超椭圆；skip(θ, z) 为真时挖掉该面（舱门开口）。
+// patch 用同一曲面的一部分（θ、z 范围＋外移量）做玻璃、色带、舱门板，保证贴合机身。
+const HULL = [[2.95, 0.04, 0.05, 0.04, -0.1], [2.75, 0.36, 0.34, 0.42, -0.12], [2.45, 0.7, 0.62, 0.72, -0.08], [2.0, 0.98, 0.9, 0.9, -0.02], [1.4, 1.14, 1.06, 0.96, 0], [0.6, 1.23, 1.13, 0.98, 0], [-0.4, 1.25, 1.15, 0.98, 0], [-1.3, 1.2, 1.12, 0.92, 0], [-2.0, 1.0, 1.02, 0.6, 0.05], [-2.55, 0.66, 0.84, 0.18, 0.28], [-2.95, 0.36, 0.62, 0.16, 0.5]];
+function hullAt(z) { const H = HULL; let i = 0; while (i < H.length - 2 && z < H[i + 1][0]) i++; const A = H[Math.max(0, i - 1)], B = H[i], Cc = H[i + 1], D = H[Math.min(H.length - 1, i + 2)]; const u = clamp((B[0] - z) / (B[0] - Cc[0]));
+  const cr = (k) => { const p0 = A[k], p1 = B[k], p2 = Cc[k], p3 = D[k]; return 0.5 * ((2 * p1) + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u * u + (-p0 + 3 * p1 - 3 * p2 + p3) * u * u * u); }; return { w: Math.max(0.01, cr(1)), t: Math.max(0.01, cr(2)), b: Math.max(0.01, cr(3)), yc: cr(4) }; }
+const SE = 2.6, se = (v) => Math.sign(v) * Math.pow(Math.abs(v), 2 / SE);
+function hullPt(th, z, off = 0) { const h = hullAt(z); const c = Math.cos(th), s2 = Math.sin(th); return [(h.w + off) * se(c), h.yc + (s2 >= 0 ? h.t + off : h.b + off) * se(s2), z]; }
+function hullGeo(th0, th1, z0, z1, nth, nz, off = 0, skip = null) {
+  const pos = [], idx = []; for (let j = 0; j <= nz; j++) { const z = lerp(z0, z1, j / nz); for (let i = 0; i <= nth; i++) pos.push(...hullPt(lerp(th0, th1, i / nth), z, off)); }
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nth; i++) { if (skip && skip(lerp(th0, th1, (i + 0.5) / nth), lerp(z0, z1, (j + 0.5) / nz))) continue; const a = j * (nth + 1) + i, b2 = a + 1, c = a + nth + 1, d = c + 1; idx.push(a, c, b2, b2, c, d); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); return g; }
+const DOOR_TH = [Math.PI - 0.62, Math.PI + 0.66], DOOR_Z = [-0.35, 1.05]; // 左门 θ 范围；右门与之镜像 [-0.66, 0.62]
+const nth = (th) => ((th % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+const inDoor = (th0, z) => { if (z <= DOOR_Z[0] || z >= DOOR_Z[1]) return false; const th = nth(th0); return (th > DOOR_TH[0] && th < DOOR_TH[1]) || th < 0.62 || th > 2 * Math.PI - 0.66; };
+const heliText = (() => { const c = mkCanvas(1024, 128), g = c.getContext('2d'); g.fillStyle = '#ec4e26'; g.font = '900 78px "Noto Sans SC",sans-serif'; g.textBaseline = 'middle'; g.fillText('应急救援', 8, 66); g.fillStyle = '#2b2d31'; g.font = '700 54px "DejaVu Sans Mono",monospace'; g.fillText('B-7690 · LH RESCUE', 360, 68); return tex(c); })();
 export class Helicopter {
   constructor() {
     const g = this.g = new THREE.Group();
-    const hw = std({ color: '#f3f1ed', roughness: 0.35, metalness: 0.05 });
-    const fus = mesh(geo('hFus', () => { const l = lathe([[0, -2.7], [0.55, -2.55], [0.95, -2.0], [1.2, -1.0], [1.25, 0.2], [1.2, 1.3], [1.0, 2.1], [0.62, 2.65], [0, 2.85]], 40); l.rotateX(Math.PI / 2); l.scale(1, 1.08, 1); return l; }), hw); g.add(fus);
-    g.add(mesh(geo('hBand', () => merged([[rbox(2.52, 0.18, 3.6, 0.08), [0, -0.25, 0]]])), M.orange));
-    g.add(mesh(geo('hGlass', () => { const s2 = new THREE.SphereGeometry(1.12, 32, 16, -0.95, 1.9, 0.55, 0.95); s2.rotateX(-0.25); s2.translate(0, 0.25, 1.6); return s2; }), M.glass));
-    g.add(mesh(geo('hWins', () => merged([[rbox(0.05, 0.5, 0.9, 0.06), [1.21, 0.35, 0.3]], [rbox(0.05, 0.5, 0.9, 0.06), [-1.21, 0.35, -0.6]]])), M.glass));
-    g.add(mesh(geo('hEng', () => merged([[rbox(1.1, 0.6, 2.4, 0.2), [0, 1.25, -0.9]]])), hw));
-    g.add(mesh(geo('hBoom', () => { const c = cyl(0.22, 0.42, 5.2, 20); c.rotateX(Math.PI / 2); c.translate(0, 0.55, -5.1); return c; }), hw));
-    g.add(mesh(geo('hFin', () => merged([[rbox(0.12, 1.5, 0.9, 0.06), [0, 1.2, -7.5], [-0.35, 0, 0]], [rbox(1.8, 0.08, 0.55, 0.04), [0, 0.6, -6.9]]])), M.orange));
-    g.add(mesh(geo('hSkid', () => { const L = []; for (const sd of [-1, 1]) { L.push([cyl(0.06, 0.06, 4.1, 12), [sd * 1.25, -1.45, 0.05], [Math.PI / 2, 0, 0]]); for (const z of [1.0, -1.0]) L.push([cyl(0.05, 0.05, 0.8, 10), [sd * 0.98, -1.18, z], [0, 0, sd * 0.78]]); } return merged(L); }), M.black));
-    this.rotor = new THREE.Group(); this.rotor.position.set(0, 1.75, -0.6); g.add(this.rotor); this.rotor.add(mesh(geo('hHub', () => cyl(0.2, 0.25, 0.3, 16)), M.dark));
-    this.blades = new THREE.Group(); this.rotor.add(this.blades); for (let k = 0; k < 4; k++) { const b = mesh(geo('hBlade', () => { const bb = rbox(5.4, 0.04, 0.32, 0.02); bb.translate(2.8, 0, 0); return bb; }), M.black); b.rotation.y = k * Math.PI / 2; this.blades.add(b); }
-    this.disc = new THREE.Mesh(geo('hDisc', () => new THREE.CircleGeometry(8.2, 64).rotateX(-Math.PI / 2)), new THREE.MeshBasicMaterial({ map: HELI_DISC, transparent: true, depthWrite: false, side: THREE.DoubleSide })); this.disc.position.y = 0.05; this.rotor.add(this.disc);
-    this.tail = new THREE.Mesh(geo('hTail', () => new THREE.CircleGeometry(0.75, 32).rotateY(Math.PI / 2)), new THREE.MeshBasicMaterial({ map: HELI_DISC, transparent: true, depthWrite: false, side: THREE.DoubleSide })); this.tail.position.set(0.18, 1.25, -7.6); g.add(this.tail);
-    // 左侧滑门开口（暖光）
-    this.doorMat = new THREE.MeshBasicMaterial({ color: '#ffcf8a' }); this.doorOpen = mesh(geo('hDoorO', () => new THREE.PlaneGeometry(1, 1.34).rotateY(-Math.PI / 2)), this.doorMat, false); this.doorOpen.position.set(-1.222, -0.05, 0.3); g.add(this.doorOpen);
-    this.doorGlow = glowSprite('#ffb347', 2.2, 0.5, false); g.add(this.doorGlow);
-    // 绞车吊臂、钢缆、吊钩
-    this.hoist = mesh(geo('hHoist', () => merged([[rbox(0.7, 0.1, 0.1, 0.03), [1.42, 1.0, 0.4]], [cyl(0.08, 0.08, 0.2, 12), [1.78, 0.96, 0.4]]])), M.white); g.add(this.hoist);
+    const hw = std({ color: '#f3f1ed', roughness: 0.32, metalness: 0.05 }), dk = std({ color: '#3a3d43', roughness: 0.45, metalness: 0.3 });
+    // 机身（左侧挖出舱门）与机鼻封口
+    g.add(mesh(geo('hHull', () => hullGeo(-Math.PI / 2, 1.5 * Math.PI, 2.95, -2.95, 72, 46, 0, inDoor)), hw)); // 接缝放在机腹
+    g.add(mesh(geo('hTailCap', () => { const c = new THREE.SphereGeometry(0.42, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2); c.rotateX(-Math.PI / 2); c.scale(0.86, 1, 0.5); c.translate(0, 0.52, -2.95); return c; }), hw));
+    // 座舱玻璃（整片深色面罩＋中间窗框）、下视窗、右侧舱窗、后舱窗
+    g.add(mesh(geo('hGlass', () => mergeGeometries([hullGeo(0.22, Math.PI - 0.22, 2.8, 1.42, 30, 16, 0.012), hullGeo(Math.PI + 0.55, 2 * Math.PI - 0.55, 2.62, 2.12, 16, 6, 0.012), hullGeo(-0.22, 0.32, -0.72, -1.38, 8, 6, 0.012), hullGeo(Math.PI - 0.32, Math.PI + 0.22, -0.72, -1.38, 8, 6, 0.012)], false)), M.glass));
+    g.add(mesh(geo('hFrame', () => mergeGeometries([hullGeo(Math.PI / 2 - 0.035, Math.PI / 2 + 0.035, 2.82, 1.4, 2, 16, 0.022), hullGeo(0.2, Math.PI - 0.2, 1.47, 1.4, 30, 1, 0.024), hullGeo(0.55, 0.62, 2.7, 1.42, 2, 12, 0.022), hullGeo(Math.PI - 0.62, Math.PI - 0.55, 2.7, 1.42, 2, 12, 0.022)], false)), hw));
+    // 涂装：下侧橙色宽带（避开舱门）、窗下细线
+    const stripeSkip = inDoor;
+    g.add(mesh(geo('hStripe', () => mergeGeometries([hullGeo(-0.62, -0.26, 2.45, -2.25, 6, 30, 0.008, stripeSkip), hullGeo(Math.PI + 0.26, Math.PI + 0.62, 2.45, -2.25, 6, 30, 0.008, stripeSkip), hullGeo(0.04, 0.1, 1.38, -2.1, 2, 24, 0.008, stripeSkip), hullGeo(Math.PI - 0.1, Math.PI - 0.04, 1.38, -2.1, 2, 24, 0.008, stripeSkip)], false)), M.orange));
+    // 机舱内饰（暖光）：内壁、深色地板、三张座椅、担架架
+    const cab = new THREE.Mesh(geo('hCab', () => new THREE.BoxGeometry(1.9, 1.45, 2.5)), std({ color: '#f1e3c8', roughness: 0.8, emissive: '#ffcf8a', emissiveIntensity: 0.35, side: THREE.BackSide })); cab.position.set(0, 0.025, 0.05); g.add(cab);
+    g.add(mesh(geo('hCabF', () => merged([[new THREE.BoxGeometry(1.88, 0.04, 2.48), [0, -0.68, 0.05]], [rbox(0.48, 0.45, 0.5, 0.06), [-0.55, -0.45, -0.95]], [rbox(0.48, 0.45, 0.5, 0.06), [0, -0.45, -0.95]], [rbox(0.48, 0.45, 0.5, 0.06), [0.55, -0.45, -0.95]], [rbox(0.48, 0.65, 0.1, 0.04), [-0.55, -0.05, -1.17]], [rbox(0.48, 0.65, 0.1, 0.04), [0, -0.05, -1.17]], [rbox(0.48, 0.65, 0.1, 0.04), [0.55, -0.05, -1.17]]])), dk, false));
+    g.add(mesh(geo('hCabS', () => merged([[rbox(0.6, 0.08, 1.7, 0.03), [0.1, -0.6, 0.35]]])), M.orange, false));
+    // 左侧滑门（门板＋门窗＋色带，沿导轨后移）、导轨
+    this.doorLeaf = new THREE.Group(); g.add(this.doorLeaf);
+    const Z0 = DOOR_Z[1] + 0.03, Z1 = DOOR_Z[0] - 0.03;
+    this.doorLeaf.add(mesh(geo('hDoor', () => mergeGeometries([hullGeo(DOOR_TH[0] - 0.02, DOOR_TH[1] + 0.02, Z0, Z1, 10, 10, 0.03), hullGeo(-0.68, 0.64, Z0, Z1, 10, 10, 0.03)], false)), hw));
+    this.doorLeaf.add(mesh(geo('hDoorW', () => mergeGeometries([hullGeo(DOOR_TH[0] + 0.12, Math.PI + 0.05, 0.85, 0.0, 6, 6, 0.042), hullGeo(-0.05, 0.5, 0.85, 0.0, 6, 6, 0.042)], false)), M.glass));
+    this.doorLeaf.add(mesh(geo('hDoorS', () => mergeGeometries([hullGeo(Math.PI + 0.26, Math.PI + 0.62, Z0, Z1, 4, 6, 0.04), hullGeo(-0.62, -0.26, Z0, Z1, 4, 6, 0.04)], false)), M.orange));
+    this.doorLeaf.add(mesh(geo('hDoorH', () => merged([[rbox(0.04, 0.06, 0.22, 0.015), [-1.31, 0.05, 0.85]], [rbox(0.04, 0.06, 0.22, 0.015), [1.31, 0.05, 0.85]]])), dk));
+    g.add(mesh(geo('hRail', () => merged([[rbox(0.05, 0.05, 2.9, 0.02), [-1.17, 0.8, -0.4]], [rbox(0.05, 0.05, 2.9, 0.02), [-1.3, -0.62, -0.4]], [rbox(0.05, 0.05, 2.9, 0.02), [1.17, 0.8, -0.4]], [rbox(0.05, 0.05, 2.9, 0.02), [1.3, -0.62, -0.4]]])), dk));
+    // 发动机整流罩、进气格栅、双排气管、桅杆整流罩
+    g.add(mesh(geo('hCowl', () => merged([[rbox(1.25, 0.6, 2.75, 0.24), [0, 1.36, -0.75]], [cyl(0.34, 0.24, 0.32, 24), [0, 1.74, -0.6]]])), hw));
+    g.add(mesh(geo('hIntake', () => { const L = []; for (const sd of [-1, 1]) { L.push([rbox(0.06, 0.34, 0.62, 0.03), [sd * 0.63, 1.38, 0.2]]); for (let k = 0; k < 5; k++) L.push([rbox(0.03, 0.02, 0.56, 0.005), [sd * 0.66, 1.26 + k * 0.06, 0.2]]); L.push([cyl(0.12, 0.14, 0.5, 16), [sd * 0.4, 1.46, -2.12], [Math.PI / 2 - 0.35, sd * 0.25, 0]]); } return merged(L); }), dk));
+    // 主旋翼：桨毂、变距拉杆、四片桨叶（桨尖橙色）
+    this.rotor = new THREE.Group(); this.rotor.position.set(0, 1.95, -0.6); g.add(this.rotor);
+    this.rotor.add(mesh(geo('hHub', () => merged([[cyl(0.2, 0.26, 0.3, 20)], [new THREE.SphereGeometry(0.17, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), [0, 0.15, 0]], [cyl(0.34, 0.34, 0.05, 24), [0, -0.12, 0]]])), dk));
+    this.blades = new THREE.Group(); this.rotor.add(this.blades);
+    for (let k = 0; k < 4; k++) { const b = new THREE.Group(); b.rotation.y = k * Math.PI / 2; this.blades.add(b);
+      b.add(mesh(geo('hGrip', () => merged([[rbox(0.55, 0.12, 0.18, 0.04), [0.42, 0, 0]], [cyl(0.015, 0.015, 0.22, 6), [0.3, -0.12, 0.09]]])), dk));
+      b.add(mesh(geo('hBlade', () => { const bb = rbox(5.05, 0.05, 0.34, 0.02); bb.translate(3.1, 0, 0); return bb; }), M.black)); b.add(mesh(geo('hTip', () => { const bb = rbox(0.42, 0.052, 0.34, 0.02); bb.translate(5.83, 0, 0); return bb; }), M.orange)); }
+    this.disc = new THREE.Mesh(geo('hDisc', () => new THREE.CircleGeometry(6.1, 64).rotateX(-Math.PI / 2)), new THREE.MeshBasicMaterial({ map: HELI_DISC, transparent: true, depthWrite: false, side: THREE.DoubleSide })); this.disc.position.y = 0.05; this.rotor.add(this.disc);
+    // 尾梁（渐细）、平尾与端板、涵道尾桨（导管＋风扇＋上方垂尾）、尾橇
+    g.add(mesh(geo('hBoom', () => { const c = cyl(0.3, 0.17, 4.4, 24); c.rotateX(Math.PI / 2); c.translate(0, 0.62, -5.05); return c; }), hw));
+    g.add(mesh(geo('hStab', () => merged([[rbox(2.5, 0.07, 0.62, 0.03), [0, 0.64, -6.1]]])), hw)); g.add(mesh(geo('hStabE', () => merged([[rbox(0.07, 0.6, 0.5, 0.03), [1.25, 0.74, -6.12]], [rbox(0.07, 0.6, 0.5, 0.03), [-1.25, 0.74, -6.12]]])), M.orange));
+    g.add(mesh(geo('hFen', () => { const L = [[rbox(0.32, 1.25, 1.35, 0.1), [0, 0.98, -7.62]]]; return merged(L); }), hw));
+    g.add(mesh(geo('hFenD', () => { const t = new THREE.TorusGeometry(0.44, 0.07, 10, 36); t.rotateY(Math.PI / 2); t.translate(0, 0.98, -7.6); return t; }), dk));
+    g.add(mesh(geo('hFin', () => merged([[rbox(0.18, 1.0, 0.85, 0.06), [0, 1.98, -7.95], [-0.38, 0, 0]], [rbox(0.2, 0.1, 0.6, 0.03), [0, 0.32, -7.7]]])), M.orange));
+    this.tail = new THREE.Mesh(geo('hTail', () => new THREE.CircleGeometry(0.42, 32).rotateY(Math.PI / 2)), new THREE.MeshBasicMaterial({ map: HELI_DISC, transparent: true, depthWrite: false, side: THREE.DoubleSide })); this.tail.position.set(0.17, 0.98, -7.6); g.add(this.tail);
+    this.fan = mesh(geo('hFan', () => { const L = []; for (let k = 0; k < 9; k++) L.push([rbox(0.03, 0.36, 0.07, 0.01), [0, 0.18, 0], [k * 0.698, 0, 0]]); L.push([cyl(0.08, 0.08, 0.1, 12), [0, 0, 0], [0, 0, Math.PI / 2]]); return merged(L); }), dk); this.fan.position.set(0, 0.98, -7.6); g.add(this.fan);
+    // 滑橇：拱形横管、滑管（前端上翘）、登机踏板
+    g.add(mesh(geo('hSkid', () => { const L = []; for (const z of [1.05, -0.95]) { const tb = new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(new THREE.Vector3(-1.28, -1.47, z), new THREE.Vector3(0, -0.72, z), new THREE.Vector3(1.28, -1.47, z)), 20, 0.055, 8, false); L.push([tb]); }
+      for (const sd of [-1, 1]) { L.push([cyl(0.06, 0.06, 3.5, 12), [sd * 1.28, -1.47, 0.1], [Math.PI / 2, 0, 0]]); L.push([cyl(0.06, 0.06, 0.5, 12), [sd * 1.28, -1.35, 2.03], [Math.PI / 2 - 0.55, 0, 0]]); } L.push([rbox(0.34, 0.04, 0.6, 0.02), [-1.36, -1.3, 0.35]]); return merged(L.map(([gg, p2, r2]) => [gg, p2, r2])); }), M.black));
+    // 机鼻：空速管、剪线器、红外转塔、探照灯；防撞灯与航行灯、天线
+    g.add(mesh(geo('hNose', () => merged([[cyl(0.012, 0.012, 0.5, 6), [0.28, 0.0, 2.95], [Math.PI / 2, 0, 0]], [cyl(0.012, 0.012, 0.5, 6), [-0.28, 0.0, 2.95], [Math.PI / 2, 0, 0]], [rbox(0.04, 0.32, 0.06, 0.01), [0, 1.08, 1.75], [0.5, 0, 0]], [rbox(0.04, 0.3, 0.06, 0.01), [0, -0.92, 2.45], [-0.5, 0, 0]],
+      [rbox(0.03, 0.26, 0.22, 0.01), [0, 0.92, -4.1]], [cyl(0.008, 0.008, 0.5, 6), [0.4, -1.22, -0.6]]])), dk));
+    g.add(mesh(geo('hFlir', () => merged([[new THREE.SphereGeometry(0.17, 18, 12), [-0.36, -1.02, 2.3]], [cyl(0.05, 0.05, 0.2, 8), [-0.36, -0.86, 2.3]]])), dk)); g.add(mesh(geo('hFlirL', () => merged([[cyl(0.07, 0.07, 0.02, 14), [-0.36, -1.04, 2.46], [Math.PI / 2, 0, 0]]])), M.glass));
+    for (const [p2, c] of [[[0, 1.7, -1.95], '#ff3b30'], [[0, -1.0, -1.0], '#ff3b30'], [[-1.29, 0.74, -6.12], '#ff3b30'], [[1.29, 0.74, -6.12], '#2ee68f']]) { const l = mesh(geo('hLed', () => new THREE.SphereGeometry(0.045, 10, 8)), new THREE.MeshBasicMaterial({ color: c }), false); l.position.set(...p2); g.add(l); }
+    // 尾梁两侧文字
+    for (const sd of [-1, 1]) { const pl = new THREE.Mesh(geo('hTxt', () => new THREE.PlaneGeometry(2.2, 0.275)), new THREE.MeshStandardMaterial({ map: heliText, transparent: true, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -2 })); pl.position.set(sd * 0.272, 0.62, -4.3); pl.rotation.y = sd * Math.PI / 2; pl.rotation.z = 0; if (sd < 0) pl.scale.x = 1; g.add(pl); }
+    // 绞车：舱顶支架、吊臂、卷筒（吊点位置与旧模型一致）
+    this.hoist = mesh(geo('hHoist', () => merged([[rbox(0.72, 0.12, 0.14, 0.04), [1.42, 1.0, 0.4]], [cyl(0.09, 0.09, 0.22, 14), [1.78, 0.96, 0.4]], [rbox(0.12, 0.5, 0.14, 0.03), [1.06, 0.98, 0.4]], [rbox(0.34, 0.12, 0.3, 0.05), [0.94, 0.84, 0.4]]])), M.white); g.add(this.hoist);
     this.cable = mesh(geo('hCable', () => cyl(0.012, 0.012, 1, 6)), M.dark); g.add(this.cable);
-    // 探照灯
-    this.light = mesh(geo('hLamp', () => cyl(0.12, 0.16, 0.18, 14)), M.dark); this.light.position.set(0.5, -0.95, 1.8); g.add(this.light);
-    this.cone = new THREE.Mesh(geo('hCone', () => { const c = new THREE.ConeGeometry(4.5, 16, 24, 1, true); c.translate(0, -8, 0); return c; }), new THREE.MeshBasicMaterial({ color: '#fff2d6', transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide })); this.cone.position.set(0.5, -1.0, 1.8); this.cone.rotation.x = -0.5; g.add(this.cone);
+    this.light = mesh(geo('hLamp', () => merged([[cyl(0.14, 0.17, 0.2, 16)], [cyl(0.15, 0.15, 0.02, 16), [0, -0.11, 0]]])), dk); this.light.position.set(0.5, -1.05, 1.75); g.add(this.light);
+    this.cone = new THREE.Mesh(geo('hCone', () => { const c = new THREE.ConeGeometry(4.5, 16, 24, 1, true); c.translate(0, -8, 0); return c; }), new THREE.MeshBasicMaterial({ color: '#fff2d6', transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide })); this.cone.position.set(0.5, -1.1, 1.75); this.cone.rotation.x = -0.5; g.add(this.cone);
     dyn(g);
   }
-  // s: { pos, heading, pitch, roll, rotor(角度), speed(0~1), door(0~1), cable(米，可选), search(探照灯) }
+  // s: { pos, heading, pitch, roll, rotor(角度), speed(0~1), door(0 关~1 开), cable(米，可选), search(探照灯) }
   update(s) {
     const g = this.g; g.visible = true; setPose(g, s.pos, s.heading || 0, s.pitch || 0, s.roll || 0); const sp = s.speed ?? 1;
-    this.rotor.rotation.y = s.rotor || 0; const bl = smooth((sp - 0.3) / 0.4); this.blades.visible = bl < 0.95; this.disc.visible = bl > 0.05; this.disc.material.opacity = bl; this.tail.material.opacity = bl;
-    const d = s.door || 0; this.doorOpen.visible = d > 0.02; this.doorOpen.scale.set(1, 1, 1); this.doorOpen.position.z = 0.95 - 0.62 * d; this.doorOpen.scale.z = d; this.doorGlow.visible = d > 0.02; this.doorGlow.position.set(-1.5, 0, 0.95 - 0.62 * d); this.doorGlow.material.opacity = 0.45 * d;
+    this.rotor.rotation.y = s.rotor || 0; const bl = smooth((sp - 0.3) / 0.4); this.blades.visible = bl < 0.95; this.disc.visible = bl > 0.05; this.disc.material.opacity = bl; this.tail.material.opacity = bl; this.fan.rotation.x = (s.rotor || 0) * 3; this.fan.visible = bl < 0.9;
+    this.doorLeaf.position.z = -1.42 * smooth(s.door || 0);
     this.hoist.visible = s.cable !== undefined; this.cable.visible = s.cable !== undefined && s.cable > 0.05; if (this.cable.visible) span(this.cable, [1.78, 0.9, 0.4], [1.78, 0.9 - s.cable, 0.4], 1);
     this.cone.visible = !!s.search; return g;
   }
   world(p) { this.g.updateMatrixWorld(); return V(...p).applyMatrix4(this.g.matrixWorld).toArray(); }
+  // 舱门平面（世界坐标，法线朝外）：登机人员越过它的部分被裁掉
+  doorPlane() { this.g.updateMatrixWorld(); const n = V(-1, 0, 0).transformDirection(this.g.matrixWorld), p2 = V(-1.16, 0, 0).applyMatrix4(this.g.matrixWorld); return new THREE.Plane().setFromNormalAndCoplanarPoint(n, p2); }
 }
 export const HELI = pool(() => new Helicopter());
 
@@ -127,16 +188,22 @@ export class Human {
     const g = this.g = new THREE.Group(); const skin = std({ color: '#e9e5de', roughness: 0.7 }), cloth = std({ color: '#3b3f46', roughness: 0.8 }), vest = std({ color: COL.orange, roughness: 0.5 });
     this.torso = mesh(geo('huT', () => new THREE.CapsuleGeometry(0.17, 0.32, 4, 12)), vest); g.add(this.torso);
     this.head = mesh(geo('huH', () => new THREE.SphereGeometry(0.11, 16, 12)), skin); g.add(this.head);
-    this.helm = mesh(geo('huHm', () => new THREE.SphereGeometry(0.125, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55)), M.white); g.add(this.helm);
+    const helmM = M.white.clone(); this.helm = mesh(geo('huHm', () => new THREE.SphereGeometry(0.125, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55)), helmM); g.add(this.helm); this.mats = [skin, cloth, vest, helmM]; this.clip = null;
     this.parts = []; for (let k = 0; k < 8; k++) { const m = mesh(geo('huL' + (k < 4 ? 'a' : 'b'), () => new THREE.CapsuleGeometry(k < 4 ? 0.06 : 0.05, 1, 3, 8)), k < 4 ? cloth : cloth); g.add(m); this.parts.push(m); }
     dyn(g);
   }
-  // s: { pos, heading, phase, run, armsUp, alpha }
+  // s: { pos, heading, phase, run, armsUp, sit, typing, alpha, clip(THREE.Plane，可选：只画平面正面一侧) }
   update(s) {
-    const g = this.g; g.visible = (s.alpha ?? 1) > 0.05; setPose(g, s.pos, s.heading || 0); const ph = s.phase || 0, run = s.run ?? 0;
+    const g = this.g; g.visible = (s.alpha ?? 1) > 0.05; setPose(g, s.pos, s.heading || 0); const cp = s.clip || null; if (cp !== this.clip) { for (const m of this.mats) m.clippingPlanes = cp ? [cp] : null; this.clip = cp; } const ph = s.phase || 0, run = s.run ?? 0;
     const sw = Math.sin(ph) * (0.35 + 0.35 * run), lean = run * 0.18, bob = Math.abs(Math.cos(ph)) * 0.04 * run;
     this.torso.position.set(0, 1.2 + bob, lean * 0.25); this.torso.rotation.x = lean * 0.6; this.head.position.set(0, 1.66 + bob, lean * 0.6); this.helm.position.set(0, 1.69 + bob, lean * 0.6);
     const lim = (m, a, b) => { const A = V(...a), B = V(...b); const L = A.distanceTo(B); m.position.copy(A).add(B).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(V(0, 1, 0), B.sub(A).normalize()); m.scale.set(1, Math.max(0.1, L - 0.1), 1); };
+    if (s.sit) { // 坐姿：坐高 0.48，双手放在桌面上（typing 时手指轻敲）
+      const dy = -0.47; this.torso.position.set(0, 1.2 + dy, 0.03); this.torso.rotation.x = 0.08; this.head.position.set(0, 1.66 + dy, 0.06); this.helm.position.set(0, 1.69 + dy, 0.06); this.helm.visible = false;
+      let k2 = 0; for (const sd of [-1, 1]) { const knee = [sd * 0.11, 0.52, 0.44], foot = [sd * 0.12, 0.07, 0.5]; lim(this.parts[k2++], [sd * 0.1, 0.5, 0.02], knee); lim(this.parts[k2++], knee, foot);
+        const tap = s.typing ? 0.015 * Math.sin(ph * 3 + sd) : 0; const elb = [sd * 0.24, 0.8, 0.22], hand = [sd * 0.17, 0.79 + tap, 0.48]; lim(this.parts[4 + (sd > 0 ? 2 : 0)], [sd * 0.2, 0.95, 0.03], elb); lim(this.parts[5 + (sd > 0 ? 2 : 0)], elb, hand); }
+      return g; }
+    this.helm.visible = !s.noHelm;
     let k = 0; for (const sd of [-1, 1]) {
       const a = sd * sw; const knee = [sd * 0.1, 0.5 + bob, Math.sin(a) * 0.25 + 0.05 * run], foot = [sd * 0.1, 0.08, Math.sin(a) * 0.48 - (a < 0 ? 0.1 * run : 0)];
       lim(this.parts[k++], [sd * 0.1, 0.95 + bob, 0], knee); lim(this.parts[k++], knee, foot);
@@ -167,8 +234,11 @@ export const STRETCHER = pool(() => new Stretcher());
 
 // —— 航空基地：停机坪（圆圈＋H）、拱顶机库（亮灯大门、门楣标牌）、塔台、跑道、风向袋 ——
 const signC = mkCanvas(1024, 64); { const g = signC.getContext('2d'); g.fillStyle = '#1d1e22'; g.fillRect(0, 0, 1024, 64); g.fillStyle = '#f2f0eb'; g.font = 'bold 40px "Noto Sans SC",sans-serif'; g.textAlign = 'center'; g.fillText('应急救援航空基地', 512, 46); g.fillStyle = '#ec4e26'; g.fillRect(0, 58, 1024, 6); }
-const apC = mkCanvas(1024, 1024); { const g = apC.getContext('2d'); g.fillStyle = '#dcd7ce'; g.fillRect(0, 0, 1024, 1024); g.strokeStyle = '#ec4e26'; g.lineWidth = 10; g.beginPath(); g.arc(512, 512, 47, 0, 7); g.stroke(); g.lineWidth = 3; g.beginPath(); g.arc(512, 512, 41, 0, 7); g.stroke(); g.fillStyle = '#ffffff'; g.fillRect(500, 492, 8, 40); g.fillRect(516, 492, 8, 40); g.fillRect(500, 508, 24, 7);
-  g.fillStyle = '#c9c3b9'; g.fillRect(0, 760, 1024, 110); g.strokeStyle = '#ffffff'; g.lineWidth = 3; g.setLineDash([40, 40]); g.beginPath(); g.moveTo(0, 815); g.lineTo(1024, 815); g.stroke(); }
+const apC = mkCanvas(2048, 2048); { const g = apC.getContext('2d'); const S = 2048 / 240, R = mulberry32(606); g.fillStyle = '#dcd7ce'; g.fillRect(0, 0, 2048, 2048);
+  for (let y = 0; y < 2048; y += 5 * S) for (let x = 0; x < 2048; x += 5 * S) { const v = (R() - 0.5) * 9; g.fillStyle = `rgb(${220 + v},${215 + v},${206 + v})`; g.fillRect(x + 1, y + 1, 5 * S - 2, 5 * S - 2); } // 混凝土分块
+  g.strokeStyle = 'rgba(160,152,140,0.55)'; g.lineWidth = 1.2; for (let k = 0; k <= 48; k++) { g.beginPath(); g.moveTo(k * 5 * S, 0); g.lineTo(k * 5 * S, 2048); g.moveTo(0, k * 5 * S); g.lineTo(2048, k * 5 * S); g.stroke(); }
+  for (let k = 0; k < 40; k++) { const x = (R() * 120 + 60) * S, y = (R() * 70 + 60) * S, r = (0.6 + R() * 2.2) * S; const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(120,112,100,0.28)'); gr.addColorStop(1, 'rgba(120,112,100,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); } // 油渍
+  g.fillStyle = '#c9c3b9'; g.fillRect(0, 1520, 2048, 220); g.strokeStyle = '#ffffff'; g.lineWidth = 5; g.setLineDash([80, 80]); g.beginPath(); g.moveTo(0, 1630); g.lineTo(2048, 1630); g.stroke(); g.setLineDash([]); }
 export class Airport {
   constructor() {
     const g = this.g = new THREE.Group();
@@ -182,6 +252,11 @@ export class Airport {
     const tx = -34, tz = -40; g.add(mesh(geo('apTower', () => merged([[cyl(1.8, 2.4, 18, 20), [tx, 9, tz]], [cyl(3.8, 3.4, 0.5, 8), [tx, 18.25, tz]], [cyl(3.9, 3.9, 0.4, 8), [tx, 21.7, tz]]])), MW));
     g.add(mesh(geo('apTowerG', () => cyl(3.6, 3.6, 3.0, 8, true)), M.glass)); g.children[g.children.length - 1].position.set(tx, 20, tz);
     const sock = mesh(geo('apSock', () => merged([[cyl(0.06, 0.06, 6, 8), [30, 3, 18]]])), M.chrome); g.add(sock); this.sock = mesh(geo('apSockC', () => { const c = new THREE.ConeGeometry(0.5, 2.2, 12, 1, true); c.rotateZ(Math.PI / 2); c.translate(31.1, 5.8, 18); return c; }), std({ color: COL.orange, roughness: 0.5, side: THREE.DoubleSide })); g.add(this.sock);
+    // 起降坪：几何体圆环与 H（贴图放大会糊）
+    const padM = std({ color: COL.orange, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), padW = std({ color: '#f7f5f1', roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    for (const [r0, r1, m] of [[10.6, 11.0, padM], [9.75, 9.9, padM]]) { const ring = new THREE.Mesh(new THREE.RingGeometry(r0, r1, 120).rotateX(-Math.PI / 2), m); ring.position.y = 0.012; ring.receiveShadow = true; g.add(ring); }
+    const hm = new THREE.Mesh(merged([[new THREE.BoxGeometry(0.9, 0.01, 5.2), [-1.6, 0.012, 0]], [new THREE.BoxGeometry(0.9, 0.01, 5.2), [1.6, 0.012, 0]], [new THREE.BoxGeometry(2.4, 0.01, 0.8), [0, 0.012, 0]]]), padW); hm.receiveShadow = true; g.add(hm);
+    g.add(airportDetail()); // 停机坪标线、加油车、电源车、牵引车、灯杆、锥桶、救护车、办公楼、围栏
     this.lights = []; for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; const l = mesh(geo('apL', () => new THREE.SphereGeometry(0.16, 8, 6)), new THREE.MeshBasicMaterial({ color: '#5fd4ff' }), false); l.position.set(Math.cos(a) * 11.6, 0.15, Math.sin(a) * 11.6); g.add(l); this.lights.push(l); }
     dyn(g);
   }

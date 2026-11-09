@@ -143,7 +143,7 @@ function buildDynamic() {
   DEB = new THREE.Points(dg, smat.clone()); DEB.material.uniforms.map.value = SOFT; DEB.frustumCulled = false; DEB.visible = false; ROOT.add(DEB);
   // 被困者标记：光柱＋脉冲环＋球
   MARK = CITY.survivors.map(([x, z]) => { const grp = new THREE.Group(); grp.position.set(x, 0, z); const mat = new THREE.MeshBasicMaterial({ color: COL.red }); /* 纯色不透明（用户要求红点、绿点不要半透明） */ const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 1, 10, 1, true), mat); grp.add(beam);
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), mat); grp.add(ball); const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: COL.red, transparent: true, depthWrite: false, side: THREE.DoubleSide })); grp.add(ring);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 48), mat); /* 片尾推到铺满画面时轮廓要圆（原来 20 段能看出多边形） */ grp.add(ball); const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 128).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: COL.red, transparent: true, depthWrite: false, side: THREE.DoubleSide })); grp.add(ring);
     const ring2 = ring.clone(); ring2.material = ring.material.clone(); grp.add(ring2); grp.visible = false; ROOT.add(grp); return { grp, mat, beam, ball, ring, ring2 }; });
 }
 // 每帧：t 全片时间；o.quake(x,z) → {c,tau}（开场用），o.fire/smoke 透明度，o.marks(i) → 0 无 / 0~1 出现 / 1~2 变绿，o.markH 光柱高度

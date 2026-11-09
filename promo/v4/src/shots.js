@@ -384,7 +384,7 @@ const SH = {
   } },
   s27: { update(t, { POST }) { // 推到最后一个红点铺满画面，变绿，成为纯绿
     const T = T0.s27 + t; const turn = smooth(range(t, 3.5, 3.95)); const ds = (i) => (i === LAST ? 1 + turn : 2);
-    zoomShot(T, 8 + t, ds, { view: '地图 MAP', word: turn > 0.5 ? '全部救出' : '最后一人', sub: turn > 0.5 ? '8 / 8 SAVED' : 'SAVED 7 / 8', full: 1 }, 0);
+    zoomShot(T, 8 + t, ds, { view: '地图 MAP', word: turn > 0.5 ? '全部救出' : '救援进行中', /* 接 s26 不换字，避免切点处标题突变 */ sub: turn > 0.5 ? '8 / 8 SAVED' : 'SAVED 7 / 8', full: 1 }, 0);
     POST.flash = 0.18 * Math.sin(Math.PI * range(t, 3.5, 3.85));
     if (HUD) { const f = smooth(range(t, 4.25, 5.0)); if (f > 0) { HUD.save(); HUD.globalAlpha = f; HUD.fillStyle = GREEN; HUD.fillRect(0, 0, W, H); HUD.restore(); } }
   } },

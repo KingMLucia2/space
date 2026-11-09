@@ -63,7 +63,7 @@ v2/assemble.sh                                        # → out/宣传片_v2.mp4
 
 ## 第三版（粒子点阵、中文旁白、片尾字幕）
 
-在第二版工程上继续：默认渲染风格改为粒子点阵（`core.js` 的 `STYLE.mode = 'dots'`，点按世界坐标固定在物体边上），镜头扩充到 29 个（含 26 秒片尾），共 146.4 秒。另有一个不进成片的 `cover` 镜头，用来出封面图。
+在第二版工程上继续：默认渲染风格改为粒子点阵（`core.js` 的 `STYLE.mode = 'dots'`，点按世界坐标固定在物体边上），镜头扩充到 30 个（含 26 秒片尾字幕和 6 秒片尾封面 s30），共 152.4 秒。另有一个不进成片的 `cover` 镜头，用来出封面静帧；s30 用同一套构图（`coverDraw`），从黑场淡入、片名与标注依次出现、最后淡黑。片尾封面段的配乐与第四版相同，所以第三版合成时直接用 `audio/build/v4_mix.wav`（第三版混音＋封面段）。
 
 | 路径 | 内容 |
 | --- | --- |
@@ -74,8 +74,8 @@ v2/assemble.sh                                        # → out/宣传片_v2.mp4
 
 ```bash
 node v2/render.mjs --shots s29 --range 0:260          # 长镜头可按帧段多进程渲染，最后再用 ffmpeg 编码
-(cd audio && .venv/bin/python v3_narration.py && .venv/bin/python v3_score.py && .venv/bin/python v3_mix.py)
-v2/assemble.sh                                        # → out/宣传片_v3.mp4
+(cd audio && .venv/bin/python v3_narration.py && .venv/bin/python v4_score.py && .venv/bin/python v4_mix.py)   # 第三版与第四版共用这条带封面段的音轨
+v2/assemble.sh                                        # → out/宣传片_v3.mp4（30 个镜头）
 node v2/render.mjs --shots cover --still 0 --png      # 封面 → out/v2/stills/cover_0000.png（成品另存为 out/宣传片_v3_封面.png/.jpg）
 ```
 

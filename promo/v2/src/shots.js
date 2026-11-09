@@ -13,7 +13,7 @@ import { scanRings, downwash, routeLine, survivorBeacon, scanFan } from './fx.js
 import { clamp, lerp, range, smooth, smoother, easeIn, easeOut, shake, mulberry32 } from './util.js';
 
 const DURS = [['s01', 7], ['s02', 4], ['s03', 3.5], ['s04', 3], ['s05', 4], ['s06', 3], ['s07', 4], ['s08', 3], ['s09', 3.5], ['s10', 2.5], ['s11', 4], ['s12', 4], ['s13', 3.5], ['s14', 3],
-  ['s15', 6], ['s16', 5], ['s17', 3], ['s18', 4], ['s19', 3.5], ['s20', 3], ['s21', 4], ['s22', 5], ['s23', 6.4], ['s24', 3.5], ['s25', 4], ['s26', 8], ['s27', 5], ['s28', 8], ['s29', 26]];
+  ['s15', 6], ['s16', 5], ['s17', 3], ['s18', 4], ['s19', 3.5], ['s20', 3], ['s21', 4], ['s22', 5], ['s23', 6.4], ['s24', 3.5], ['s25', 4], ['s26', 8], ['s27', 5], ['s28', 8], ['s29', 26], ['s30', 6]]; // s30：片尾封面镜头
 export const T0 = {}; { let a = 0; for (const [id, d] of DURS) { T0[id] = a; a += d; } }
 
 // —— 向量与相机工具 ——
@@ -240,17 +240,19 @@ const CREDITS_SHOT = { prepare: loadCredits, update(t) { // 片尾：绿色片�
 const COVER_TXT = '六合空地协同生命搜救系统上天入地，不放弃每一个生命六轴无人机六足机器人';
 export const COVER_VIEW = { yaw: 0.62, pitch: 0.1, fov: 38, ch: 0.42, hx: 0.85, hz: 3.3, dz: 2.0, hover: 1.3, fog: [25, 520], face: [-0.75, 0.66], dyaw: 0.2, beacons: false, beacon: 45, bh: 12, warm: 0.35, embers: 28, marks: [[1010, 640, 2, 1.1], [1735, 598, 4, 0.18]] };
 const COV_BG = mkCanvas(W, H).getContext('2d');
-function coverLabel(h, p, zh, en, dx, dy) { // 中英双语标注：锚点＋折线引线＋文字
-  if (!p) return; h.save(); h.strokeStyle = 'rgba(159,232,255,0.85)'; h.fillStyle = '#9fe8ff'; h.lineWidth = 1.5;
+function coverLabel(h, p, zh, en, dx, dy, a = 1) { // 中英双语标注：锚点＋折线引线＋文字
+  if (!p || a <= 0.01) return; h.save(); h.globalAlpha = a; h.strokeStyle = 'rgba(159,232,255,0.85)'; h.fillStyle = '#9fe8ff'; h.lineWidth = 1.5;
   const ex = p.x + dx, ey = p.y + dy, tx = ex + (dx > 0 ? 165 : -165);
-  h.beginPath(); h.arc(p.x, p.y, 4, 0, 7); h.fill(); h.beginPath(); h.arc(p.x, p.y, 9, 0, 7); h.globalAlpha = 0.5; h.stroke(); h.globalAlpha = 1;
+  h.beginPath(); h.arc(p.x, p.y, 4, 0, 7); h.fill(); h.beginPath(); h.arc(p.x, p.y, 9, 0, 7); h.globalAlpha = 0.5 * a; h.stroke(); h.globalAlpha = a;
   h.beginPath(); h.moveTo(p.x, p.y); h.lineTo(ex, ey); h.lineTo(tx, ey); h.stroke();
   h.textAlign = dx > 0 ? 'right' : 'left'; const x = tx; // 文字对齐引线外端，避开斜线
   h.textBaseline = 'bottom'; h.font = `500 27px ${FONT}`; h.fillStyle = '#eaf6ff'; h.fillText(zh, x, ey - 8);
   h.textBaseline = 'top'; h.font = `500 14px ${MONO}`; h.letterSpacing = '3px'; h.fillStyle = '#7fd6ff'; h.fillText(en, x, ey + 8); h.letterSpacing = '0px';
   h.restore();
 }
-const COVER_SHOT = { extra: true, prepare: () => Promise.all(['300', '400', '500', '700', '900'].map((w) => document.fonts.load(`${w} 40px "Noto Sans SC"`, COVER_TXT))).catch(() => null), update(t) {
+const COVER_PREP = () => Promise.all(['300', '400', '500', '700', '900'].map((w) => document.fonts.load(`${w} 40px "Noto Sans SC"`, COVER_TXT))).catch(() => null);
+// film=true 时是片尾封面镜头 s30：从黑场淡入，镜头极缓地推近，片名与标注依次淡入，最后一秒淡黑（时间点与第四版 s30 一致，配乐共用）
+function coverDraw(t, film) {
   const T = 140 + t; // 烟柱、火光取充分发展后的状态
   const V = COVER_VIEW, yaw = V.yaw, pitch = V.pitch;
   const right = [Math.cos(yaw), 0, -Math.sin(yaw)], fh = [-Math.sin(yaw), 0, -Math.cos(yaw)]; // 相机的右方、水平前方
@@ -258,7 +260,8 @@ const COVER_SHOT = { extra: true, prepare: () => Promise.all(['300', '400', '500
   // 六足机器人在相机右前方 hz 米处；无人机在同一条视线上再远 dz 米、悬停在它上方，画面上对接光束竖直
   const HX = [REST.x, 0, REST.z]; const C = [HX[0] - right[0] * V.hx - fh[0] * V.hz, V.ch, HX[2] - right[2] * V.hx - fh[2] * V.hz];
   const kD = (V.hz + V.dz) / V.hz; const D = [C[0] + (HX[0] - C[0]) * kD, HEX.standH - HANG_Y + V.hover, C[2] + (HX[2] - C[2]) * kD];
-  const view = () => { setCamYPR(C, yaw, pitch, 0, V.fov); FOG.start = V.fog[0]; FOG.end = V.fog[1]; };
+  const push = film ? 0.22 * smoother(clamp(t / 6)) : 0, Cv = [C[0] + fh[0] * push, C[1], C[2] + fh[2] * push]; // 片尾镜头里机位极缓地向前推
+  const view = () => { setCamYPR(Cv, yaw, pitch, 0, V.fov); FOG.start = V.fog[0]; FOG.end = V.fog[1]; };
   // 背景（灾区，可选远处的红色生命信标）单独渲染后轻微虚化，形成景深，让前景设备更突出
   renderPass(() => { view(); drawCity(T); if (V.beacons) CITY.survivors.forEach(([x, z], i) => { if (Math.hypot(x - C[0], z - C[2]) > V.beacon) survivorBeacon(x, z, T, i, 1, V.bh, 6); }); }, COV_BG);
   view();
@@ -286,8 +289,9 @@ const COVER_SHOT = { extra: true, prepare: () => Promise.all(['300', '400', '500
   const h = hud; h.save();
   const vg = h.createRadialGradient(W * 0.64, H * 0.5, H * 0.3, W * 0.55, H * 0.5, H * 1.05); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.62)'); h.fillStyle = vg; h.fillRect(0, 0, W, H);
   const g = h.createLinearGradient(0, 0, 1100, 0); g.addColorStop(0, 'rgba(1,6,12,0.75)'); g.addColorStop(0.55, 'rgba(1,6,12,0.35)'); g.addColorStop(1, 'rgba(1,6,12,0)'); h.fillStyle = g; h.fillRect(0, 0, 1100, H);
+  const ta = film ? smooth(range(t, 0.6, 1.6)) : 1, la = film ? smooth(range(t, 1.6, 2.3)) : 1; h.globalAlpha = ta;
   brackets(h, 48, 48, W - 96, H - 96, 46, 'rgba(140,220,255,0.45)', 2);
-  for (const [x, y, i, tp] of V.marks || []) { h.save(); h.strokeStyle = 'rgba(255,90,70,0.6)'; h.lineWidth = 1.5; h.setLineDash([3, 4]); h.beginPath(); h.moveTo(x, y + 16); h.lineTo(x, y + 56); h.stroke(); h.restore(); drawDot(h, x, y, 1, tp, i - 1, 1, 11); } // 废墟里的被困者红点（与片中指挥大屏一致）
+  for (const [x, y, i, tp] of V.marks || []) { h.save(); h.globalAlpha = ta; h.strokeStyle = 'rgba(255,90,70,0.6)'; h.lineWidth = 1.5; h.setLineDash([3, 4]); h.beginPath(); h.moveTo(x, y + 16); h.lineTo(x, y + 56); h.stroke(); h.restore(); drawDot(h, x, y, 1, tp, i - 1, ta, 11); } // 废墟里的被困者红点（与片中指挥大屏一致）
   // 片名
   const x0 = 140; h.textAlign = 'left'; h.textBaseline = 'alphabetic';
   h.font = `500 19px ${MONO}`; h.letterSpacing = '4px'; h.fillStyle = '#7fd6ff'; h.fillText('AIR-GROUND SEARCH & RESCUE SYSTEM', x0, 322); h.letterSpacing = '0px';
@@ -297,9 +301,12 @@ const COVER_SHOT = { extra: true, prepare: () => Promise.all(['300', '400', '500
   h.shadowBlur = 0; h.fillStyle = PAL.orange; h.fillRect(x0, 680, 120, 5);
   h.font = `300 44px ${FONT}`; h.fillStyle = 'rgba(234,246,255,0.95)'; h.fillText('上天入地，不放弃每一个生命', x0, 756);
   // 设备标注
-  if (V.labels !== false) { coverLabel(h, project(df([-0.75, 0.05, 0.75])), '六轴无人机', 'HEXACOPTER', -80, -64); coverLabel(h, project(hf([0.2, 0.0, -0.18])), '六足机器人', 'HEXAPOD ROBOT', 150, 64); }
+  if (V.labels !== false) { coverLabel(h, project(df([-0.75, 0.05, 0.75])), '六轴无人机', 'HEXACOPTER', -80, -64, la); coverLabel(h, project(hf([0.2, 0.0, -0.18])), '六足机器人', 'HEXAPOD ROBOT', 150, 64, la); }
+  h.globalAlpha = 1;
+  if (film) { const bk = Math.max(1 - smooth(range(t, 0, 1.0)), smooth(range(t, 5.0, 6.0))); if (bk > 0) { h.globalAlpha = bk; h.fillStyle = '#000'; h.fillRect(0, 0, W, H); h.globalAlpha = 1; } } // 黑场淡入淡出（画在界面层最上面，片名一起变黑）
   h.restore();
-} };
+}
+const COVER_SHOT = { extra: true, prepare: COVER_PREP, update(t) { coverDraw(t, false); } };
 const SH = {
   // ———————— 一、灾区与出发 ————————
   s01: { update(t) { // 粒子从四面八方汇聚成城市 → 地震波从震中扩散 → 楼体坍塌、扬尘、起火
@@ -619,6 +626,7 @@ const SH = {
     titleCard(hud, t, {});
   } },
   s29: CREDITS_SHOT,
+  s30: { prepare: COVER_PREP, update(t) { coverDraw(t, true); } }, // 片尾封面
 };
 
 export const SHOTS = [...DURS.map(([id, dur]) => ({ id, dur, ...SH[id] })), { id: 'cover', dur: 1, ...COVER_SHOT }]; // cover 是封面静帧，不进成片

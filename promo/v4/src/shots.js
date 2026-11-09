@@ -317,7 +317,7 @@ const SH = {
     const dk = smoother(range(t, 1.2, 3.8)); const from = DEVICES.drone; const hd0 = Math.atan2(HOVER[0] - from[0], HOVER[2] - from[2]);
     drawDrone({ pos: vl(from, HOVER, dk), heading: lerp(hd0, Math.PI + 2 * Math.PI * Math.round((hd0 - Math.PI) / (2 * Math.PI)), smooth(range(t, 2.6, 3.8))), pitch: 0.15 * (1 - smooth(range(t, 3, 3.8))), rot: rotorSpin(T, { t0: 0 }), t: T });
     drawHexapod({ pose: restPose(), feet: restFeet(), scanner: 1 - smooth(range(t, 2.8, 3.8)) }); downwash([REST.x, 0, REST.z], T, smooth(range(t, 3.0, 3.8)) * 0.7); updateCity(T, { marks: (i) => (i === 0 ? 1 - smooth(range(t, 0.4, 1.4)) : 1 - smooth(range(t, 0.1, 0.8))), markH: 30, markS: 1.2, fogNear: FOG.near, fogFar: FOG.far });
-    ui(T, { word: '重新结合', sub: 'RENDEZVOUS · DRONE RETURN' });
+    ui(T, { word: '重新结合', sub: 'RENDEZVOUS · DRONE RETURN' }); selRing(HUD, T, 1 - smooth(range(t, 0, 0.45))); // 接 s17 的选中圈和标注，开头淡出（原来切点处突然消失）
   } },
   s19: { update(t) { // 无人机落到六足机器人上方，锁扣扣合，收腿
     const T = T0.s19 + t; setLook('table'); setCam(CAM19.p, CAM19.look, CAM19.f); setShadow([REST.x, 0, REST.z], 6); fog(20, 160); TILT.on = false;

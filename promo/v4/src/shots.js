@@ -324,7 +324,7 @@ const SH = {
   } },
   s17: { update(t) { // 推回大屏：监控界面收回紧凑版，推到大屏铺满画面＝真实的上帝视角，停一拍选中六足机器人，随即 GTA5 式分段跳降
     const T = T0.s17 + t; const ui17 = { view: '地图 MAP', word: '结合返航', sub: 'SELECT · HEXAPOD 01' };
-    if (t < 1.6) { hallFrame(T, hallLerp(END16, FILLP, (t / 1.6) ** 2), () => godScreen(T), { ...ui17, full: 1 - smooth(range(t, 0.35, 1.3)) }, (c) => { mapLabels(T, () => 1, 1 - smooth(range(t, 0.2, 0.8)), c); selRing(c, T, smooth(range(t, 0.6, 1.2))); }); hallLabel(1 - smooth(range(t, 0, 0.6))); return; }
+    if (t < 1.6) { hallFrame(T, hallLerp(END16, FILLP, smoother(t / 1.6)), /* 先加速再减速，稳稳停在大屏铺满画面上，再开始 GTA5 式跳降 */ () => godScreen(T), { ...ui17, full: 1 - smooth(range(t, 0.35, 1.3)) }, (c) => { mapLabels(T, () => 1, 1 - smooth(range(t, 0.2, 0.8)), c); selRing(c, T, smooth(range(t, 0.6, 1.2))); }); hallLabel(1 - smooth(range(t, 0, 0.6))); return; }
     diveFrame(T, t); ui(T, ui17);
   } },
   s18: { update(t) { // GTA5 式下降的后半段：继续跳降，最后从俯视转成近景机位；无人机飞回悬停

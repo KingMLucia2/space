@@ -74,7 +74,7 @@ v2/assemble.sh                                        # → out/宣传片_v2.mp4
 
 ```bash
 node v2/render.mjs --shots s29 --range 0:260          # 长镜头可按帧段多进程渲染，最后再用 ffmpeg 编码
-(cd audio && .venv/bin/python v3_narration.py && .venv/bin/python v4_score.py && .venv/bin/python v4_mix.py)   # 第三版与第四版共用这条带封面段的音轨
+(cd audio && .venv/bin/python v3_narration.py && .venv/bin/python v3c_score.py && .venv/bin/python v3c_mix.py)   # 第三版带封面段的音轨 → audio/build/v3c_mix.wav（v2/assemble.sh 默认用它）
 v2/assemble.sh                                        # → out/宣传片_v3.mp4（30 个镜头）
 node v2/render.mjs --shots cover --still 0 --png      # 封面 → out/v2/stills/cover_0000.png（成品另存为 out/宣传片_v3_封面.png/.jpg）
 ```
@@ -96,7 +96,7 @@ node v2/render.mjs --shots cover --still 0 --png      # 封面 → out/v2/stills
 | `v4/src/models/hall.js` | 指挥中心大厅：视频墙（主屏贴上帝视角画面）、副屏、操作台、操作员 |
 | `v4/src/ui.js` | 任务仿真仪表盘：普通镜头用紧凑版（左上、右上几张小卡和左下阶段大字，没有顶栏、进度条和鼠标），指挥中心大屏上用完整版 |
 | `v4/src/shots.js` | 30 个镜头（s30 是封面镜头）和不进成片的 `cover` 镜头 |
-| `audio/v4_score.py`、`audio/v4_mix.py` | 第三版配乐与混音延长到 152.4 秒，加上封面段的钟声与收束和弦；旁白沿用第三版 |
+| `audio/v4_score.py`、`audio/v4_mix.py` | 第四版音轨（157.2 秒）：沿用第三版配乐与旁白，加封面段；第四轮拆解镜头加长 4.8 秒，第三版时间轴上的事件按两条规则换算，新音效直接写最终时间。第三版用的旧音轨另存为 `v3c_score.py`、`v3c_mix.py` |
 
 ```bash
 node v4/render.mjs --shots s14,s23 --still 0,45       # 检查帧 → out/v4/stills/
@@ -106,7 +106,7 @@ v4/assemble.sh                                        # → out/宣传片_v4.mp4
 node v4/render.mjs --shots cover --still 0 --png      # 封面 → out/v4/stills/cover_0000.png（成品另存为 out/宣传片_v4_封面.png/.jpg）
 ```
 
-渲染走 SwiftShader 软件 WebGL：棚拍镜头约 1 秒/帧，城区远景 2~5 秒/帧，指挥中心镜头（每帧先渲染大屏上的上帝视角再渲染大厅）约 5 秒/帧，整片 4572 帧在 4 核机器上分 4~6 个进程并行约 2 小时（场景细化后城区镜头变慢；SwiftShader 吃满 CPU，进程再多总吞吐也不变，主要是让各进程同时收尾）。只改了某个镜头的一段时，可以用 `--range a:b` 只重渲那几帧，再用 ffmpeg 从 `out/v4/frames/<镜头>/%05d.jpg` 重新编码这个镜头。页面 URL 参数：`msaa`（多重采样数，默认 4）、`ao=1`（开 GTAO，每帧多约 1 秒）、`hf=1`（半浮点渲染目标，较慢）。
+渲染走 SwiftShader 软件 WebGL：棚拍镜头约 1 秒/帧，城区远景 2~5 秒/帧，指挥中心镜头（每帧先渲染大屏上的上帝视角再渲染大厅）约 5 秒/帧，整片 4716 帧（157.2 秒）在 4 核机器上分 4~6 个进程并行约 2 小时（场景细化后城区镜头变慢；SwiftShader 吃满 CPU，进程再多总吞吐也不变，主要是让各进程同时收尾）。只改了某个镜头的一段时，可以用 `--range a:b` 只重渲那几帧，再用 ffmpeg 从 `out/v4/frames/<镜头>/%05d.jpg` 重新编码这个镜头。页面 URL 参数：`msaa`（多重采样数，默认 4）、`ao=1`（开 GTAO，每帧多约 1 秒）、`hf=1`（半浮点渲染目标，较慢）。
 
 ## 暂定内容
 

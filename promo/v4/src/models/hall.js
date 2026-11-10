@@ -21,7 +21,10 @@ const OPS = [[-5.4, -3.95], [-3.25, -3.95], [-1.1, -3.95], [1.1, -3.95], [3.25, 
 export class Hall {
   constructor() {
     const g = this.g = new THREE.Group(); g.position.set(...HALL.O); const { SW, SH, SY, SZ } = HALL;
-    const wall = std({ color: '#eeebe5', roughness: 0.92 }), floor = std({ color: '#d9d5ce', roughness: 0.42 }), dark = std({ color: '#23262b', roughness: 0.5, metalness: 0.2 }), desk = std({ color: '#f5f3ef', roughness: 0.4 }), carpet = std({ color: '#cbc6bd', roughness: 0.95 });
+    const floorTex = (() => { const T = canvasTex(512, 512); const c = T.g; const R0 = mulberry32(7); for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) { const v = 196 + Math.floor(R0() * 10); c.fillStyle = `rgb(${v},${v - 5},${v - 11})`; c.fillRect(i * 256, j * 256, 256, 256); for (let k = 0; k < 40; k++) { c.fillStyle = `rgba(255,255,255,${0.02 + R0() * 0.03})`; c.fillRect(i * 256 + R0() * 256, j * 256 + R0() * 256, 30 + R0() * 80, 2); } }
+      c.fillStyle = 'rgba(70,64,56,0.55)'; for (const q of [0, 256]) { c.fillRect(q, 0, 2, 512); c.fillRect(0, q, 512, 2); } T.t.wrapS = T.t.wrapT = THREE.RepeatWrapping; T.t.repeat.set(10, 10.8); return T.t; })();
+    const carpetTex = (() => { const T = canvasTex(256, 256); const c = T.g; c.fillStyle = '#7b828b'; c.fillRect(0, 0, 256, 256); const R0 = mulberry32(9); for (let k = 0; k < 900; k++) { c.fillStyle = R0() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)'; c.fillRect(R0() * 256, R0() * 256, 2, 2); } c.fillStyle = 'rgba(0,0,0,0.08)'; for (let q = 0; q < 256; q += 64) { c.fillRect(q, 0, 1, 256); c.fillRect(0, q, 256, 1); } T.t.wrapS = T.t.wrapT = THREE.RepeatWrapping; T.t.repeat.set(17 / 1.6, 9.5 / 1.6); return T.t; })();
+    const wall = std({ color: '#eeebe5', roughness: 0.92 }), floor = std({ color: '#ffffff', map: floorTex, roughness: 0.3 }), dark = std({ color: '#23262b', roughness: 0.5, metalness: 0.2 }), desk = std({ color: '#f5f3ef', roughness: 0.4 }), carpet = std({ color: '#ffffff', map: carpetTex, roughness: 0.95 }); /* 打磨：地面抛光石材、操作区深色地毯，白色桌面不再和地面糊在一起 */
     // 房间：地面、地毯、侧墙（竖向分缝＋橙色腰线）、后墙、天花与灯带
     g.add(mesh(merged([[box(24, 0.2, 26), [0, -0.1, 1.5]]]), floor)); g.add(mesh(merged([[box(17, 0.02, 9.5), [0, 0.01, -2.4]]]), carpet));
     g.add(mesh(merged([[box(0.3, 7.8, 26), [-11.15, 3.9, 1.5]], [box(0.3, 7.8, 26), [11.15, 3.9, 1.5]], [box(24, 7.8, 0.3), [0, 3.9, 14.6]], [box(24, 0.3, 26), [0, 7.75, 1.5]]]), wall));
@@ -40,9 +43,19 @@ export class Hall {
     this.side = []; for (const [x, y] of [[-6.45, 4.45], [-6.45, 2.4], [6.45, 4.45], [6.45, 2.4]]) { const T = canvasTex(512, 288); const m = new THREE.Mesh(new THREE.PlaneGeometry(3.1, 1.75), new THREE.MeshBasicMaterial({ map: T.t, toneMapped: false })); m.position.set(x, y, SZ - 0.01); g.add(m);
       g.add(mesh(merged([[box(3.22, 1.87, 0.08), [x, y, SZ - 0.07]]]), std({ color: '#141518', roughness: 0.35, metalness: 0.4 }))); this.side.push(T); }
     g.add(mesh(merged([[box(19.4, 0.05, 0.06), [0, 0.36, SZ - 0.2]]]), new THREE.MeshBasicMaterial({ color: COL.orange }), false));
+    { const T = canvasTex(256, 256); const c = T.g; const gr = c.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, 'rgba(170,215,255,0.9)'); gr.addColorStop(0.35, 'rgba(150,200,245,0.35)'); gr.addColorStop(1, 'rgba(150,200,245,0)'); c.fillStyle = gr; c.fillRect(0, 0, 256, 256);
+      const fade = c.createLinearGradient(0, 0, 256, 0); fade.addColorStop(0, 'rgba(0,0,0,1)'); fade.addColorStop(0.2, 'rgba(0,0,0,0)'); fade.addColorStop(0.8, 'rgba(0,0,0,0)'); fade.addColorStop(1, 'rgba(0,0,0,1)'); c.globalCompositeOperation = 'destination-out'; c.fillStyle = fade; c.fillRect(0, 0, 256, 256);
+      const spill = new THREE.Mesh(new THREE.PlaneGeometry(19, 6.5), new THREE.MeshBasicMaterial({ map: T.t, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); spill.rotation.x = -Math.PI / 2; spill.position.set(0, 0.03, SZ + 3.4); spill.renderOrder = 2; g.add(spill); } // 大屏照在地面上的冷光
+    // 视频墙上方：深色吊顶灯槽（下沿冷色灯带）、大屏标题条与 LIVE 标识
+    g.add(mesh(merged([[box(24, 1.0, 1.4), [0, 7.1, SZ + 0.45]]]), dark)); g.add(mesh(merged([[box(22, 0.03, 0.05), [0, 6.58, SZ + 1.12]]]), new THREE.MeshBasicMaterial({ color: '#bfe6ff' }), false));
+    g.add(mesh(merged([-6, -1, 4, 9].map((z) => [box(24, 0.32, 0.22), [0, 7.44, z]])), std({ color: '#e3dfd8', roughness: 0.9 })));
+    { const T = canvasTex(1024, 96); const c = T.g; c.fillStyle = '#23262b'; c.fillRect(0, 0, 1024, 96); c.fillStyle = COL.orange; c.fillRect(0, 30, 6, 36); c.fillStyle = '#f2efe9'; c.font = `700 40px ${FONT}`; c.fillText('灾区实时态势', 22, 62); c.fillStyle = '#8b939b'; c.font = `500 20px ${MONO}`; c.letterSpacing = '6px'; c.fillText('ZONE A · LIVE SITUATION · LH-6 OPS', 300, 60);
+      const ttl = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 0.525), new THREE.MeshBasicMaterial({ map: T.t, toneMapped: false })); ttl.position.set(-SW / 2 + 2.8, SY + SH / 2 + 0.5, SZ + 0.005); g.add(ttl); }
+    { const T = canvasTex(256, 64); this.live = T; const m = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.25), new THREE.MeshBasicMaterial({ map: T.t, toneMapped: false })); m.position.set(SW / 2 - 0.5, SY + SH / 2 + 0.5, SZ + 0.005); g.add(m); }
     // 两排操作台（后排在高台上）：桌面、前挡板、桌腿、每席两台显示器（共用一张会动的界面贴图）、键盘
     this.mon = canvasTex(384, 240); const monM = new THREE.MeshBasicMaterial({ map: this.mon.t, toneMapped: false });
-    g.add(mesh(merged([[box(17, 0.3, 3.4), [0, 0.15, -0.7]], [box(17, 0.04, 0.06), [0, 0.32, -2.38]]]), std({ color: '#e4e0d9', roughness: 0.6 })));
+    { const pt = carpetTex.clone(); pt.needsUpdate = true; pt.repeat.set(17 / 1.6, 3.4 / 1.6); g.add(mesh(merged([[box(17, 0.3, 3.4), [0, 0.15, -0.7]]]), std({ color: '#ffffff', map: pt, roughness: 0.95 }))); } // 后排高台也铺深色地毯
+    g.add(mesh(merged([[box(17, 0.04, 0.06), [0, 0.32, -2.38]]]), std({ color: '#e4e0d9', roughness: 0.6 }))); g.add(mesh(merged([[box(17, 0.025, 0.03), [0, 0.285, 1.0]]]), new THREE.MeshBasicMaterial({ color: '#bfe6ff' }), false)); // 高台前沿踏步灯
     const deskL = [], monL = [], scrL = [], chairL = [];
     for (const [zr, y0, xs] of [[-4.9, 0, [-5.4, -3.25, -1.1, 1.1, 3.25, 5.4]], [-1.45, 0.3, [-4.3, -1.45, 1.45, 4.3]]]) { const L = xs.length > 4 ? 13.6 : 11.4;
       deskL.push([rbox(L, 0.06, 0.95, 0.02), [0, y0 + 0.76, zr]], [box(L, 0.7, 0.04), [0, y0 + 0.4, zr - 0.44]]); for (const x of [-L / 2 + 0.2, 0, L / 2 - 0.2]) deskL.push([box(0.06, 0.74, 0.8), [x, y0 + 0.37, zr]]);
@@ -50,6 +63,10 @@ export class Hall {
         scrL.push([new THREE.PlaneGeometry(0.6, 0.36), [mx + Math.sin(ry) * 0.022, y0 + 1.12, zr - 0.18 + Math.cos(ry) * 0.022], [0, ry, 0]]); }
       for (const x of xs) { deskL.push([box(0.5, 0.02, 0.16), [x, y0 + 0.8, zr + 0.3]]); chairL.push([cyl(0.04, 0.04, 0.4, 8), [x, y0 + 0.24, zr + 0.95]], [rbox(0.52, 0.09, 0.5, 0.03), [x, y0 + 0.47, zr + 0.95]], [rbox(0.5, 0.62, 0.07, 0.03), [x, y0 + 0.84, zr + 1.2], [-0.12, 0, 0]], [cyl(0.3, 0.3, 0.04, 10), [x, y0 + 0.04, zr + 0.95]]); } }
     g.add(mesh(merged(deskL), desk)); g.add(mesh(merged(monL), dark)); g.add(mesh(merged(scrL), monM, false)); g.add(mesh(merged(chairL), dark));
+    // 操作员耳麦：头带、耳罩、话筒（按坐姿头部位置摆好，一次合并）
+    { const L = []; for (const [x, z] of OPS) { const y = (z > -1 ? 0.3 : 0) + 1.19, hz = z - 0.06; const band = new THREE.TorusGeometry(0.118, 0.011, 6, 20, Math.PI); L.push([band, [x, y + 0.005, hz]]); for (const sd of [-1, 1]) { const cup = cyl(0.045, 0.045, 0.03, 14); cup.rotateZ(Math.PI / 2); L.push([cup, [x + sd * 0.115, y - 0.005, hz]]); }
+        const boom = cyl(0.006, 0.006, 0.14, 6); boom.rotateX(Math.PI / 2); boom.rotateY(-0.35); L.push([boom, [x - 0.095, y - 0.045, hz - 0.08]]); L.push([new THREE.SphereGeometry(0.014, 8, 6), [x - 0.07, y - 0.055, hz - 0.145]]); }
+      g.add(mesh(merged(L), std({ color: '#1d1f23', roughness: 0.45 }))); }
     // 绿植与盆
     const R = mulberry32(12); const pots = [], leaves = [];
     for (const [x, z] of [[-10.2, -8.2], [10.2, -8.2], [-10.2, 13.4], [10.2, 13.4], [-10.3, 6.5]]) { pots.push([cyl(0.36, 0.28, 0.6, 14), [x, 0.3, z]]); for (let k = 0; k < 3; k++) leaves.push([new THREE.IcosahedronGeometry(0.55 - k * 0.1, 0), [x + (R() - 0.5) * 0.3, 1.0 + k * 0.5, z + (R() - 0.5) * 0.3], [R() * 3, R() * 3, 0]]); }
@@ -75,6 +92,7 @@ export class Hall {
     { const c = this.side[3].g; sideBg(c, '通讯链路', 'MESH · 5.8 GHZ'); const N = [[90, 210, '基站'], [256, 90, '无人机'], [420, 200, '六足']]; c.strokeStyle = 'rgba(95,212,255,0.6)'; c.lineWidth = 2; c.beginPath(); c.moveTo(...N[0].slice(0, 2)); c.lineTo(...N[1].slice(0, 2)); c.lineTo(...N[2].slice(0, 2)); c.stroke();
       for (let k = 0; k < 6; k++) { const u = (t * 0.6 + k / 6) % 1; const [a, b2] = u < 0.5 ? [N[2], N[1]] : [N[1], N[0]]; const v = (u % 0.5) * 2; c.fillStyle = COL.orange; c.beginPath(); c.arc(a[0] + (b2[0] - a[0]) * v, a[1] + (b2[1] - a[1]) * v, 4, 0, 7); c.fill(); }
       for (const [x, y, n] of N) { c.fillStyle = '#12161b'; c.strokeStyle = '#5fd4ff'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 18, 0, 7); c.fill(); c.stroke(); c.fillStyle = '#f4f2ee'; c.font = `600 15px ${FONT}`; c.textAlign = 'center'; c.fillText(n, x, y + 42); c.textAlign = 'left'; } this.side[3].t.needsUpdate = true; }
+    { const c = this.live.g; c.clearRect(0, 0, 256, 64); c.fillStyle = '#c8302a'; c.beginPath(); c.roundRect(0, 4, 256, 56, 10); c.fill(); c.fillStyle = (t * 1.6) % 1 < 0.6 ? '#ffffff' : 'rgba(255,255,255,0.35)'; c.beginPath(); c.arc(34, 32, 11, 0, 7); c.fill(); c.fillStyle = '#fff'; c.font = `700 30px ${MONO}`; c.letterSpacing = '4px'; c.fillText('LIVE', 60, 43); c.letterSpacing = '0px'; c.font = `700 26px ${FONT}`; c.fillText('直播中', 160, 42); this.live.t.needsUpdate = true; }
     // 操作员（坐姿、敲键盘）与站立的指挥员；o.cheer 时后排几个人举手
     OPS.forEach(([x, z], i) => drawHuman({ pos: hallPt([x, z > -1 ? 0.3 : 0, z]), heading: Math.PI, sit: true, typing: true, phase: t * 6 + i * 1.7 }));
     drawHuman({ pos: hallPt([5.6, 0, -6.9]), heading: Math.PI + 0.45, phase: 0, run: 0, armsUp: !!o.point, noHelm: true });

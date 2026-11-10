@@ -1,15 +1,19 @@
-# 第四版配乐与音效：沿用第三版（同一时间轴），片尾字幕之后多 6 秒封面镜头（146.4–152.4），输出 build/v4_music.wav 与 build/v4_sfx.wav
+# 第四版配乐与音效：沿用第三版，片尾字幕之后多 6 秒封面镜头；第四轮把拆解镜头 s05 加长 4.8 秒，全片 157.2 秒。输出 build/v4_music.wav 与 build/v4_sfx.wav
+# 时间换算：下面大部分事件仍写第三版时间轴上的时间，add() 先按“绞车镜头加长 2.4 秒”、再按“19.4 秒处插入 4.8 秒”换算；final=True 的事件直接写最终时间
 # 镜头起点（秒）：s01 0 粒子城市/地震, s02 7, s03 11, s04 14.5, s05 17.5 全息爆炸图, s06 21.5, s07 24.5, s08 28.5, s09 31.5, s10 35,
 # s11 37.5 激光扫描, s12 41.5, s13 45.5, s14 49, s15 52, s16 58, s17 63, s18 66, s19 70, s20 73.5, s21 76.5 机场, s22 80.5 擦肩,
 # s23 85.5 绞车救援, s24 89.5, s25 93, s26 97, s27 105, s28 110 片名, s29 118 片尾字幕
 import numpy as np, soundfile as sf
 from dsp import *
 
-DUR = 152.4; N = int(DUR * SR)
+DUR = 157.2; N = int(DUR * SR)
 SHIFT_AT, EXT = 89.3, 2.4  # 绞车救援镜头加长 2.4 秒：此后的事件整体顺延
 music = np.zeros((N, 2)); sfx = np.zeros((N, 2))
-def add(buf, x, t0, gain=1.0, pan=0.0, raw=False):
-    if not raw and t0 >= SHIFT_AT: t0 += EXT
+CUT5, EXT5 = 19.4, 4.8  # 第四轮：拆解镜头加长两小节（4.8 秒），插在 19.4 秒处，此后的事件再整体顺延
+def add(buf, x, t0, gain=1.0, pan=0.0, raw=False, final=False):
+    if not final:
+        if not raw and t0 >= SHIFT_AT: t0 += EXT
+        if t0 >= CUT5: t0 += EXT5
     x = stereo(x, pan) if x.ndim == 1 else x
     i = int(t0 * SR); j = min(N, i + len(x))
     if j > i: buf[i:j] += x[: j - i] * gain
@@ -52,6 +56,14 @@ for k, c in enumerate(['Dm', 'Dm', 'Bb']):
         m = notes[[0, 2, 1, 3, 4, 3, 1, 2][s % 8]] + 12
         x = lp(saw(mtof(m), 0.14) * env(int(0.14 * SR), 0.003, 0.05, 0.3, 0.06), 1200 + 260 * k); add(music, x, t0 + s * BEAT / 4, 0.09 + 0.01 * k, pan=0.35 * np.sin(s))
 add(music, shimmer(3.2, 88, 1.2), 17.6, 1.0)
+# 第四轮插入的两小节（拆解细节巡览，final 时间 19.4–24.2）：Gm、F 的琶音逐渐变亮，叠两层闪烁
+for k, c in enumerate(['Gm', 'F']):
+    t0 = 19.4 + k * BAR; add(music, pad(CH[c], BAR + 1.2, a=0.6, r=1.0, cutoff=1500 + 300 * k), t0, 0.55, final=True)
+    notes = CH[c] + [CH[c][1] + 12]
+    for s_ in range(16):
+        m = notes[[0, 2, 1, 3, 4, 3, 1, 2][s_ % 8]] + 12
+        x = lp(saw(mtof(m), 0.14) * env(int(0.14 * SR), 0.003, 0.05, 0.3, 0.06), 1800 + 260 * k); add(music, x, t0 + s_ * BEAT / 4, 0.11 + 0.01 * k, pan=0.35 * np.sin(s_), final=True)
+add(music, shimmer(3.4, 90, 1.1), 20.6, 0.9, final=True); add(music, shimmer(3.0, 86, 1.0), 23.0, 0.8, final=True)
 add(music, tom(38, 1.0), 20.78, 0.8); add(music, boom(0.8), 20.8, 0.6)
 # 21.5–28.5 起飞与飞越：和弦脉冲，22.9 起飞时进鼓
 for k, c in enumerate(['Bb', 'F', 'C']):
@@ -155,11 +167,13 @@ for t0 in [12.25, 12.55, 13.9]: add(sfx, knock(1.0), t0, 0.5, pan=-0.2)
 # s04 基站亮灯、开舱
 add(sfx, beep(1320, 0.1), 14.8, 0.6); add(sfx, beep(1760, 0.14), 14.95, 0.6)
 add(sfx, lp(noise(2.2), 900) * env(int(2.2 * SR), 0.3, 0.2, 0.8, 0.5) * 0.25, 15.2, 0.6)
-# s05 全息爆炸图：嗡鸣、部件分离、标注提示、结合
-add(sfx, sine(110, 4.0) * 0.03 + bp(noise(4.0), 3000, 8000) * 0.01, 17.5, 1.0)
-for k in range(6): add(sfx, servo(0.25, 500 + 60 * k, 800 + 60 * k), 17.85 + k * 0.18, 0.35, pan=-0.5 + 0.2 * k)
-for k in range(5): add(sfx, blip(1800 + 150 * k, 0.05, 0.8), 19.15 + k * 0.08, 0.5, pan=0.3)
-add(sfx, whoosh(0.6, vel=0.8), 20.2, 0.5); add(sfx, clunk(1.0), 20.78, 0.9); add(sfx, click(1.0), 20.82, 0.7)
+# s05 拆解展示（8.8 秒，final 时间）：嗡鸣、部件分离、镜头移动的轻呼啸、每个标注出现时的提示音（与 shots.js 里标注的出现时间一致）、最后合拢
+S5 = 17.5
+add(sfx, sine(110, 8.8) * 0.03 + bp(noise(8.8), 3000, 8000) * 0.01, S5, 1.0, final=True)
+for k in range(6): add(sfx, servo(0.25, 500 + 60 * k, 800 + 60 * k), S5 + 0.35 + k * 0.18, 0.35, pan=-0.5 + 0.2 * k, final=True)
+for k, tl in enumerate([1.3, 1.9, 2.3, 2.6, 2.9, 3.2, 3.8, 4.7, 5.0, 5.25, 5.5, 5.8, 6.1]): add(sfx, blip(1600 + 90 * (k % 7), 0.05, 0.8), S5 + tl + 0.05, 0.45, pan=-0.4 + 0.07 * k, final=True)
+for tl, d, v in [(1.25, 1.3, 0.35), (3.95, 1.4, 0.45), (4.6, 1.3, 0.3), (6.7, 1.0, 0.35)]: add(sfx, whoosh(d, vel=v), S5 + tl, 0.5, final=True)
+add(sfx, whoosh(0.6, vel=0.8), S5 + 7.5, 0.5, final=True); add(sfx, clunk(1.0), S5 + 8.08, 0.9, final=True); add(sfx, click(1.0), S5 + 8.12, 0.7, final=True)
 # s06 平台升起、旋翼启动、起飞
 add(sfx, servo(1.4, 180, 260), 21.5, 0.55)
 spd = np.clip((T(3.0) - 0.15) / 1.2, 0, 1); add(sfx, rotor(3.0, 118, spd), 21.5, 1.0); add(sfx, whoosh(1.6, vel=0.8), 22.9, 0.65)
@@ -197,12 +211,14 @@ add(sfx, sweep(1.0), 56.9, 0.35)
 # s16 指挥大厅
 add(sfx, whoosh(1.0, vel=0.8), 57.9, 0.5); add(sfx, lp(noise(8.0), 200) * 0.15 + sine(100, 8.0) * 0.01, 58.0, 0.6)
 for t0 in [59.6, 60.9, 62.1]: add(sfx, blip(2200, 0.05, 0.6), t0, 0.5, pan=0.4)
-# s17 推回大屏、选中六足机器人
-add(sfx, whoosh(1.6, vel=0.9) + hp(noise(1.6), 3000) * np.sin(np.pi * T(1.6) / 1.6) * 0.06, 63.0, 0.75)
-add(sfx, blip(1600, 0.06), 63.9, 0.8); add(sfx, blip(2400, 0.08), 64.0, 0.8)
-# s18 分三段下降
-for a, b in [(0.1, 0.55), (0.85, 1.3), (1.6, 2.3)]:
-    add(sfx, whoosh(b - a + 0.3, vel=1.0), 66.0 + a - 0.15, 0.9); add(sfx, boom(0.8, 2.0), 66.0 + b - 0.05, 0.55)
+# s17 推回大屏（0–1.6）→ 铺满即上帝视角，停一拍选中六足机器人（提示音）→ GTA5 式三段跳降：每段急降一声呼啸、落定一声低沉的重音 → 最后一段转成近景（时间与 shots.js 的 DIVE 一致）
+S17 = 63.0
+add(sfx, whoosh(1.6, vel=0.9) + hp(noise(1.6), 3000) * np.sin(np.pi * T(1.6) / 1.6) * 0.06, S17, 0.75)
+add(sfx, blip(1600, 0.06), S17 + 1.68, 0.8); add(sfx, blip(2400, 0.08), S17 + 1.78, 0.8)
+for a, b in [(2.05, 2.5), (2.75, 3.2), (3.45, 3.95)]:
+    d = b - a + 0.35; add(sfx, whoosh(d, vel=1.0) + hp(noise(d), 2500) * np.sin(np.pi * T(d) / d) ** 2 * 0.05, S17 + a - 0.12, 0.9)
+    add(sfx, boom(0.8, 2.0), S17 + b - 0.03, 0.55)
+add(sfx, whoosh(1.7, vel=0.7), S17 + 4.1, 0.6)
 add(sfx, rotor(2.8, 118) * np.linspace(0, 1, int(2.8 * SR)), 67.2, 0.8)
 # s19 结合
 add(sfx, rotor(3.5, 118), 70.0, 0.8); add(sfx, clunk(1.0), 71.65, 0.8); add(sfx, click(1.0), 71.85, 0.8); add(sfx, bell(84, 1.2, 0.6), 72.05, 0.4)
@@ -213,10 +229,15 @@ add(sfx, rotor(3.0, 118) * np.linspace(1.0, 0.2, int(3 * SR)), 73.5, 0.9); add(s
 add(sfx, heli(4.2), 76.5, 1.7)
 for k in range(10): add(sfx, lp(noise(0.05), 1200) * expdecay(int(0.05 * SR), 0.01) * 0.6, 76.6 + k * 0.17, 0.8, pan=-0.4)
 add(sfx, servo(0.35, 300, 200) + clunk(0.7)[:int(0.35 * SR)], 78.65, 0.6); add(sfx, whoosh(1.6, vel=0.6), 79.1, 0.5)
-# s22 擦肩：跟拍直升机（一直很响），结合体在 84.0 秒从镜头右侧掠过
-tt = T(5.0); g = np.exp(-((tt - 3.54) / 0.6) ** 2)
-add(sfx, heli(5.0) * 0.85, 80.5, 1.0, pan=0.1)
-r = rotor(5.0, 118) * (0.1 + 1.1 * g); pan = np.clip((tt - 3.54) / 0.8, -0.2, 0.9) * 0.9
+# s22 擦肩（慢镜头）：交汇点 2.3 秒附近画面放慢到 38%（与 shots.js 的 SLOW22 同一曲线），直升机的桨叶拍击与涡轮声跟着放慢、发闷；
+# 进慢镜头前一记渐强的镲片，交汇时一声低沉的重音；结合体在约 84.0 秒从镜头右侧掠过
+tt = T(5.0); g = np.exp(-((tt - 3.54) / 0.6) ** 2); sp = 1 - 0.62 * np.exp(-((tt - 2.3) / 0.7) ** 2); slow = (1 - sp) / 0.62
+ph = (np.cumsum(21.0 * sp) / SR) % 1.0; ft = (2350 + 30 * np.sin(tt * 0.7)) * (0.7 + 0.3 * sp)
+hel = (bp(noise(5.0), 60, 500) * np.exp(-ph * 9) * 1.4 + np.sin(2 * np.pi * np.cumsum(ft) / SR) * 0.04 + np.sin(4 * np.pi * np.cumsum(ft) / SR) * 0.015 + lp(noise(5.0), 900) * 0.15) * 0.45
+hel = hel * (1 - 0.55 * slow) + lp(hel, 500) * 0.55 * slow
+add(sfx, hel * 0.85, 80.5, 1.0, pan=0.1)
+add(sfx, cymbal_swell(1.4), 80.3, 0.45); add(sfx, boom(0.7, 3.0), 82.75, 0.5)
+r = rotor(5.0, 118, speed=0.55 + 0.45 * sp) * (0.1 + 1.1 * g); pan = np.clip((tt - 3.54) / 0.8, -0.2, 0.9) * 0.9
 add(sfx, np.stack([r * np.cos((pan + 1) * np.pi / 4), r * np.sin((pan + 1) * np.pi / 4)], 1), 80.5, 0.9)
 add(sfx, whoosh(1.2, vel=1.0), 83.45, 0.85)
 # s23 绞车救援（6.4 秒）：悬停的直升机、担架离地（变绿提示）、绞车收缆、直升机带着担架离开
@@ -234,11 +255,16 @@ add(sfx, lp(noise(11.0), 180) * 0.12, 97.0, 0.6); add(sfx, whoosh(0.6, vel=0.8),
 # s29 片尾：绿色碎成粒子、面板出现、六次对接
 add(sfx, shimmer(2.0, 90, 1.4) + sweep(2.0, 0.6), 118.1, 0.9); add(sfx, whoosh(1.6, vel=0.6), 118.3, 0.5)
 for k in range(3): add(sfx, blip(1700 + 300 * k, 0.05, 0.7), 119.4 + k * 0.12, 0.5, pan=-0.4 + 0.4 * k)
+# 六组载荷（final 时间，每组 4 秒，与 shots.js 的 credits() 一致）：载荷从转台升起 → 无人机降下 → 锁定 → 离台 → 升空退场；最后一组不退场，名单卡片滑出后溶解进封面
+S29 = 120.4 + EXT5
 for k in range(6):
-    t0 = 120.0 + 4 * k
-    add(sfx, shimmer(0.7, 93, 1.0), t0, 0.6, pan=0.5); add(sfx, servo(1.0, 420, 300) * 0.6, t0 + 0.65, 0.4, pan=0.5)
-    add(sfx, clunk(0.8), t0 + 1.85, 0.6, pan=0.5); add(sfx, click(0.9), t0 + 1.9, 0.6, pan=0.5); add(sfx, blip(2400, 0.06, 0.6), t0 + 2.0, 0.4, pan=0.5)
-    add(sfx, sweep(0.6, 0.5), t0 + 3.4, 0.4, pan=0.5)
+    c0 = S29 + 1.2 + 4 * k; last = k == 5
+    add(sfx, servo(0.75, 260, 420) * 0.6, c0, 0.4, pan=0.5, final=True); add(sfx, shimmer(0.8, 93, 1.0), c0 + 0.05, 0.55, pan=0.5, final=True)
+    add(sfx, whoosh(1.5, vel=0.45), c0 + 0.35, 0.45, pan=0.5, final=True)
+    add(sfx, clunk(0.8), c0 + 1.85, 0.6, pan=0.5, final=True); add(sfx, click(0.9), c0 + 1.9, 0.6, pan=0.5, final=True); add(sfx, blip(2400, 0.06, 0.6), c0 + 2.0, 0.4, pan=0.5, final=True)
+    add(sfx, servo(0.6, 300, 380) * 0.4, c0 + 2.05, 0.35, pan=0.5, final=True)
+    if not last: add(sfx, whoosh(1.15, vel=0.9), c0 + 2.95, 0.6, pan=0.5, final=True); add(sfx, rotor(1.2, 118) * np.linspace(1, 0, int(1.2 * SR)), c0 + 2.9, 0.35, pan=0.5, final=True)
+add(sfx, whoosh(1.0, vel=0.4), S29 + 24.6, 0.4, final=True)
 
 
 # s30 封面（146.4–152.4）：转场呼啸与闪烁，片名出现时钟声与低音，标注提示音，D 大调长和弦收束（画面 151.4 起淡黑）
@@ -249,6 +275,7 @@ add(music, boom(0.7, 4.0), C0 + 0.95, 0.45, raw=True); add(sfx, bell(86, 3.2, 0.
 for k, m in enumerate([50, 62, 66, 69, 74]): add(music, piano(m, 4.6, 0.75), C0 + 1.0 + k * 0.03, 0.5, raw=True)
 for k in range(2): add(sfx, blip(2100 + 300 * k, 0.05, 0.7), C0 + 1.7 + k * 0.18, 0.45, pan=-0.3 + 0.6 * k, raw=True)
 
+i0, i1 = int((80.5 + EXT5 + 1.0) * SR), int((80.5 + EXT5 + 3.8) * SR); w = np.linspace(0, 1, i1 - i0); music[i0:i1] *= (1 - 0.45 * np.sin(np.pi * w) ** 2)[:, None]  # s22 慢镜头期间配乐压低
 music = reverb(music, 2.8, 0.32); sfx = reverb(sfx, 1.6, 0.18, seed=5)
 for name, buf in [('v4_music', music), ('v4_sfx', sfx)]:
     buf /= max(1e-9, np.max(np.abs(buf))) / 0.9

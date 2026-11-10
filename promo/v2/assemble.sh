@@ -3,8 +3,8 @@
 # 用法：v2/assemble.sh [clips 目录] [输出前缀] [音轨] [镜头数]（在 promo/ 目录下运行）
 set -euo pipefail
 cd "$(dirname "$0")/.."
-# 第三版片尾加了 6 秒封面镜头 s30（共 152.4 秒）；音轨用第四版的混音：v4_mix 就是第三版混音加上封面段的钟声与收束和弦（时间点一致）
-CLIPS=${1:-out/v2/clips}; OUT=${2:-out/宣传片_v3}; AUDIO=${3:-audio/build/v4_mix.wav}; COUNT=${4:-30}
+# 第三版片尾加了 6 秒封面镜头 s30（共 152.4 秒）；音轨用 audio/build/v3c_mix.wav：第三版混音加上封面段的钟声与收束和弦（audio/v3c_score.py、v3c_mix.py 生成；第四版后来改了时间轴，另用 v4_mix）
+CLIPS=${1:-out/v2/clips}; OUT=${2:-out/宣传片_v3}; AUDIO=${3:-audio/build/v3c_mix.wav}; COUNT=${4:-30}
 LIST=$(mktemp)
 for i in $(seq -w 1 $COUNT); do f="$PWD/$CLIPS/s$i.mp4"; [ -f "$f" ] || { echo "缺少镜头 s$i"; exit 1; }; echo "file '$f'" >> "$LIST"; done
 ffmpeg -y -loglevel error -f concat -safe 0 -i "$LIST" -c copy "${OUT}_无声.mp4"

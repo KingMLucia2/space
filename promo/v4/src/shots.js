@@ -1,6 +1,6 @@
 // 第四版镜头表：沿用第三版 29 个镜头的时间轴与旁白（146.4 秒），片尾字幕后接封面镜头 s30。
 // 所有动画都是全片绝对时间 T 的函数；同一地点相邻镜头共用连续的相机路径；界面层（任务仿真仪表盘）随任务阶段变化。
-import { THREE, scene, W, H, COL, setCam, setCamYPR, setShadow, CS, setLook, FOG, TILT, project, cam, mkCanvas, dyn, pool, renderGL, glCanvas, hideDyn } from './engine.js';
+import { THREE, scene, W, H, COL, setCam, setCamYPR, setShadow, CS, setLook, FOG, TILT, project, cam, mkCanvas, dyn, pool, renderGL, glCanvas, hideDyn, renderer } from './engine.js';
 import { HALLS, HALL, hallPt } from './models/hall.js';
 import { M, mesh, glowSprite, span } from './mats.js';
 import { drawDrone, rotorSpin, DRONE } from './models/hexacopter.js';
@@ -10,9 +10,10 @@ import { BASE, DOCK, dockTop, drawVehicles, HELI, drawHuman, STRETCHER, AIRPORT,
 import { drawUI, callout, cursorArrow, STAGES, stageAt, FONT, MONO, tabCenter } from './ui.js';
 import { clamp, lerp, range, smooth, smoother, easeIn, easeOut, shake, mulberry32 } from './util.js';
 
-const DURS = [['s01', 7], ['s02', 4], ['s03', 3.5], ['s04', 3], ['s05', 4], ['s06', 3], ['s07', 4], ['s08', 3], ['s09', 3.5], ['s10', 2.5], ['s11', 4], ['s12', 4], ['s13', 3.5], ['s14', 3],
+const DURS = [['s01', 7], ['s02', 4], ['s03', 3.5], ['s04', 3], ['s05', 8.8], ['s06', 3], ['s07', 4], ['s08', 3], ['s09', 3.5], ['s10', 2.5], ['s11', 4], ['s12', 4], ['s13', 3.5], ['s14', 3],
   ['s15', 6], ['s16', 5], ['s17', 3], ['s18', 4], ['s19', 3.5], ['s20', 3], ['s21', 4], ['s22', 5], ['s23', 6.4], ['s24', 3.5], ['s25', 4], ['s26', 8], ['s27', 5], ['s28', 8], ['s29', 26], ['s30', 6]];
 export const T0 = {}; { let a = 0; for (const [id, d] of DURS) { T0[id] = a; a += d; } }
+{ const AT = ['s01', 's04', 's08', 's11', 's12', 's15', 's18', 's21', 's24', 's26']; STAGES.forEach((S, i) => { S.t0 = T0[AT[i]]; S.t1 = i + 1 < AT.length ? T0[AT[i + 1]] : T0.s28; }); } // 任务阶段的起止跟随对应镜头的起点
 
 // —— 向量与相机工具 ——
 const vl = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)];
@@ -174,6 +175,8 @@ function debrisFill(t, Q) { return (geom) => { const C = cityData(); const P = g
     for (let i = 0; i < 40 && n < 6000; i++) { const a = i / 40 * 6.283 + g.x; const q = Math.max(g.w, g.d) * 0.55 * (1 + 1.6 * tau) * (0.85 + 0.3 * Math.sin(i * 7.1)); P.setXYZ(n, g.x + Math.cos(a) * q, 0.4 + tau * (1.5 + Math.sin(i * 3.3)), g.z + Math.sin(a) * q); S.setX(n, 7 + tau * 4); A.setX(n, 0.3 * (1 - tau / 3.2)); n++; } }
   geom.setDrawRange(0, n); P.needsUpdate = S.needsUpdate = A.needsUpdate = true; }; }
 
+// s22 慢镜头：真实时间 t → 画面时间 τ（交汇点 2.3 秒附近速度降到 38%，高斯形），音效按同一曲线放慢
+const SLOW22 = (() => { const N = 96 * 6, tab = new Float32Array(N + 1); for (let i = 0; i < N; i++) tab[i + 1] = tab[i] + (1 - 0.62 * Math.exp(-((((i + 0.5) / 96 - 2.3) / 0.7) ** 2))) / 96; return (tt) => { const f = clamp(tt * 96, 0, N); const i = Math.floor(f); return i >= N ? tab[N] : lerp(tab[i], tab[i + 1], f - i); }; })();
 // —— 镜头 ——
 const SH = {
   // ———— 一、灾情 ————
@@ -203,19 +206,34 @@ const SH = {
     combined(top, DOCK.ry, 0, 0, { angle: 0, speed: 0 }, T, 1.2 * lightT(T));
     ui(T, { word: '基站开舱', sub: 'BASE · HATCH OPEN' }); label(project(add(D, [0, 2.6, 0])), '基站', 'BASE · 通讯 · 充电 · 防护', 140, -90, smooth(range(t, 0.5, 1.1)));
   } },
-  s05: { transIn: { type: 'tiles', dur: 0.7 }, update(t) { // 棚拍：结合体拆解成爆炸图并标注，再“合为一体”
-    const T = T0.s05 + t; const ex = smoother(range(t, 0.25, 1.5)) * (1 - smoother(range(t, 2.9, 3.5))); const a = 0.5 + t * 0.12; const DY = 0.95;
-    setLook('studio'); setCam([5.4 * Math.sin(a), 1.75 + ex * 0.35, 5.4 * Math.cos(a)], [0, 0.5, 0], 36); CS.size = 6; CS.opacity = 0.5; fog(30, 80);
-    const d = drawDrone({ pos: [0, DY, 0], heading: 0.3, rot: rotorSpin(T, { t0: 200 }), t: T, explode: ex, gear: ex, latch: ex }); // 组装状态收起落架
+  s05: { transIn: { type: 'tiles', dur: 0.7 }, update(t) { // 棚拍：结合体拆解成爆炸图，镜头先巡览无人机、再巡览六足机器人的细节并逐个标注（桨叶缓慢转动），最后“合为一体”
+    const T = T0.s05 + t; const ex = smoother(range(t, 0.25, 1.5)) * (1 - smoother(range(t, 7.35, 8.0))); const DY = 0.95;
+    const wD = smoother(range(t, 1.35, 2.4)) * (1 - smoother(range(t, 4.05, 5.0))), wH = smoother(range(t, 4.05, 5.0)) * (1 - smoother(range(t, 6.75, 7.6))); // 镜头权重：无人机近景、六足机器人近景
+    const r = 5.4 - 2.15 * wD - 2.75 * wH, cy = 1.75 + 0.35 * ex + 0.5 * wD - 1.05 * wH, ty = 0.5 + 0.72 * wD - 0.36 * wH, a = 0.35 + 0.07 * t + 0.85 * smoother(range(t, 1.2, 2.4)) - 1.0 * smoother(range(t, 4.6, 5.8)); // 巡览无人机时从两根机臂之间看进去，下到六足机器人后绕到它的右前方
+    setLook('studio'); setCam([r * Math.sin(a), cy, r * Math.cos(a)], [0, ty, 0], 36 - 2 * (wD + wH)); CS.size = 6; CS.opacity = 0.5; fog(30, 80);
+    const d = drawDrone({ pos: [0, DY, 0], heading: 0.3, rot: { angle: 1.3 * t, speed: 0.08 }, t: T, explode: ex, gear: ex, latch: ex }); // 桨叶缓慢转动（转速低于出现桨盘虚影的阈值）；组装状态收起落架
     const hp = drawHexapod({ parent: d.g, local: [0, HANG_Y - 0.62 * ex, 0], fold: 1 - ex * 0.65, explode: ex, scanner: ex });
     // 轨道线
-    for (const [r, y, op] of [[1.9, 0.0, 0.5], [2.35, 0.02, 0.3]]) fxLine(circlePts([0, y, 0], r * (0.9 + 0.1 * ex), 96), '#9b958b', op);
+    for (const [rr, y, op] of [[1.9, 0.0, 0.5], [2.35, 0.02, 0.3]]) fxLine(circlePts([0, y, 0], rr * (0.9 + 0.1 * ex), 96), '#9b958b', op);
     fxLine(circlePts([0, DY, 0], 1.55 + 0.25 * ex, 96), COL.orange, 0.35 * ex, [0.08, 0.08]);
-    const snap = Math.exp(-(((t - 3.35) / 0.08) ** 2)); if (snap > 0.02) fxRing([0, 0.8, 0], 0.6 + (t - 3.2) * 3, COL.orange, snap, 0.05);
-    const la = smooth(range(t, 1.2, 1.6)) * (1 - smooth(range(t, 2.8, 3.0)));
-    label(project(d.world([0, 0.45, 0])), '六轴无人机', 'HEXACOPTER · 12 KG 载荷', -230, -60, la); label(project(d.world([0.95, 0.5, 0.6])), '电机与折叠桨', '6 × 6010 · 21 IN', 200, -90, la);
-    label(project(d.world([0, -0.32, 0])), '通用对接锁扣', 'UNIVERSAL DOCK · 4 HOOKS', 230, 10, la); label(project(hp.world([0, 0.02, 0.4])), '生命探测雷达', 'UWB + IR · 6.0 M', -260, 40, la);
-    label(project(hp.world([0.5, -0.05, 0.3])), '六足机器人', 'HEXAPOD · 18 × 20 KG 舵机', 210, 80, la);
+    const snap = Math.exp(-(((t - 8.05) / 0.08) ** 2)); if (snap > 0.02) fxRing([0, 0.8, 0], 0.6 + (t - 7.9) * 3, COL.orange, snap, 0.05);
+    // 标注：无人机（整机、GNSS、电机与折叠桨、电池与飞控、电调、云台）→ 对接锁扣 → 六足机器人（整机、双目、激光雷达、生命探测雷达、舵机、桁架腿），依次出现、依次淡出
+    const L = (a0, a1) => smooth(range(t, a0, a0 + 0.3)) * (1 - smooth(range(t, a1 - 0.3, a1)));
+    const armP = (i, rr, y) => { const an = i * Math.PI / 3 + Math.PI / 6, R0 = rr + 0.34 * ex; return d.world([Math.sin(an) * R0, y, Math.cos(an) * R0]); };
+    const legP = (deg, rr, y) => { const ps = deg * Math.PI / 180, R0 = rr + 0.2 * ex; return hp.world([Math.sin(ps) * R0, y, Math.cos(ps) * R0]); };
+    label(project(d.world([0, 0.24 + 0.2 * ex, 0])), '六轴无人机', 'HEXACOPTER · 12 KG 载荷', -250, -90, L(1.3, 4.1));
+    label(project(d.world([0.1, 0.34 + 0.2 * ex, -0.13])), 'GNSS 双天线', 'DUAL RTK · 厘米级定位', 170, -110, L(1.9, 4.1));
+    label(project(armP(1, 1.12, 0.045 + 0.24 * ex)), '电机与折叠桨', '6 × 6010 · 21 IN', -60, -150, L(2.3, 4.2));
+    label(project(d.world([0.07, 0.03 + 0.36 * ex, 0])), '电池与飞控', 'HOT-SWAP · 双电池', -270, 30, L(2.6, 4.2));
+    label(project(armP(0, 0.56, -0.05)), '电调与散热鳍片', 'ESC · 80 A × 6', -230, 90, L(2.9, 4.3));
+    label(project(d.world([0, -0.165 - 0.16 * ex, 0.24])), '三轴云台相机', 'GIMBAL · 30× 变焦', 230, 60, L(3.2, 4.4));
+    label(project(d.world([0.2, -0.13 - 0.16 * ex, 0])), '通用对接锁扣', 'UNIVERSAL DOCK · 4 HOOKS', 240, -10, L(3.8, 5.4));
+    label(project(hp.world([0.2, -0.02, -0.12])), '六足机器人', 'HEXAPOD · 18 × 20 KG 舵机', 150, 150, L(4.7, 7.0));
+    label(project(hp.world([0.05, 0.033 + 0.05 * ex, 0.346 + 0.2 * ex])), '双目视觉＋超声', 'STEREO · ULTRASONIC', -250, 40, L(5.0, 7.0));
+    label(project(hp.world([0, 0.103 + 0.05 * ex, 0.235 + 0.2 * ex])), '激光雷达', 'LIDAR · 360° 扫描', -220, -100, L(5.25, 7.0));
+    label(project(hp.world([0, 0.128 + 0.05 * ex, 0.192 + 0.2 * ex])), '生命探测雷达', 'UWB + IR · 6.0 M', 200, -110, L(5.5, 7.05));
+    label(project(legP(45, 0.3, 0.05)), '20 KG 数字舵机', 'SERVO × 18', 210, 30, L(5.8, 7.1));
+    label(project(legP(-45, 0.45, -0.06)), '铝板桁架腿', 'ALU TRUSS · 橡胶足尖', -240, 80, L(6.1, 7.1));
     ui(T, { view: '棚拍 STUDIO', word: ex > 0.5 ? '拆解展示' : '合为一体', sub: ex > 0.5 ? 'TEARDOWN · 100% APART' : 'COMBINED · 0% APART' });
   } },
   s06: { transIn: { type: 'wipe', dur: 0.5 }, update(t) { // 平台升起，旋翼启动，结合体起飞
@@ -304,20 +322,17 @@ const SH = {
     const early = t < 0.8; hallFrame(T, cp, () => godScreen(T), { view: early ? undefined : '地图 MAP', word: early ? '信号回传' : '侦测完成', sub: early ? 'MESH RELAY · HEXAPOD → DRONE → BASE' : '8 SIGNALS · ALL COORDINATES SENT', full: smooth(range(t, 0.7, 1.9)) }, (c) => mapLabels(T, () => 1, smooth(range(t, 0.9, 1.7)), c));
     hallLabel(smooth(range(t, 1.6, 2.4)));
   } },
-  s17: { update(t) { // 推回大屏：监控界面收回紧凑版，回到真实的上帝视角，选中六足机器人，下降到它上方
+  s17: { update(t) { // 推回大屏：监控界面收回紧凑版，推到大屏铺满画面＝真实的上帝视角，停一拍选中六足机器人，随即 GTA5 式分段跳降
     const T = T0.s17 + t; const ui17 = { view: '地图 MAP', word: '结合返航', sub: 'SELECT · HEXAPOD 01' };
     if (t < 1.6) { hallFrame(T, hallLerp(END16, FILLP, (t / 1.6) ** 2), () => godScreen(T), { ...ui17, full: 1 - smooth(range(t, 0.35, 1.3)) }, (c) => { mapLabels(T, () => 1, 1 - smooth(range(t, 0.2, 0.8)), c); selRing(c, T, smooth(range(t, 0.6, 1.2))); }); hallLabel(1 - smooth(range(t, 0, 0.6))); return; }
-    const k = smoother(range(t, 1.6, 3.0)), tau = clamp((t - 1.6) / 1.4), p0 = Math.log(GOD.pos[1]), p1 = Math.log(120), m0 = -Math.log((END16[2] - HALL.SZ) / HALL.FILL_D) * 1.25 * 1.4; const h = Math.exp((2 * tau ** 3 - 3 * tau ** 2 + 1) * p0 + (tau ** 3 - 2 * tau ** 2 + tau) * m0 + (-2 * tau ** 3 + 3 * tau ** 2) * p1), /* 带着推进大屏的速度继续下降，没有停顿 */ x = lerp(GOD.pos[0], REST.x, smooth(range(t, 1.6, 2.9))), z = lerp(GOD.pos[2], REST.z, smooth(range(t, 1.6, 2.9)));
-    setLook('table'); TILT.r = 0.42; TILT.k = 0.4 * k; setCamYPR([x, h, z], 0, -Math.PI / 2, 0, GOD.fov); setShadow([x, 0, z], lerpLog(700, 260, k)); fogFor(h);
-    drawHexapod({ pose: restPose(), feet: restFeet(), scanner: 1 }); const dp = DEVICES.drone; drawDrone({ pos: [dp[0], dp[1] + 0.3 * Math.sin(T * 1.3), dp[2]], heading: 2.12, rot: rotorSpin(T, { t0: 0 }), t: T, scale: lerp(6, 1, k) });
-    updateCity(T, { marks: () => 1, markH: 30, markS: lerp(3.2, 1.2, k), fogNear: FOG.near, fogFar: FOG.far }); ui(T, ui17); selRing(HUD, T, 1);
+    diveFrame(T, t); ui(T, ui17);
   } },
-  s18: { update(t) { // 急速下降回到现场；无人机飞回悬停
-    const T = T0.s18 + t; const c = gtaCam(t); setLook('table'); setCamYPR(c.p, c.yaw, c.pitch, 0, c.fov); fogFor(Math.max(c.h * (1 - smooth(range(t, 2.1, 3.5))), 1.5)); setShadow([REST.x, 0, REST.z], lerpLog(260, 8, smooth(range(t, 0, 3)))); TILT.r = 0.42; TILT.k = 0.4;
+  s18: { update(t) { // GTA5 式下降的后半段：继续跳降，最后从俯视转成近景机位；无人机飞回悬停
+    const T = T0.s18 + t; const c = diveCam(3 + t); diveLook(c);
     const dk = smoother(range(t, 1.2, 3.8)); const from = DEVICES.drone; const hd0 = Math.atan2(HOVER[0] - from[0], HOVER[2] - from[2]);
-    drawDrone({ pos: vl(from, HOVER, dk), heading: lerp(hd0, Math.PI + 2 * Math.PI * Math.round((hd0 - Math.PI) / (2 * Math.PI)), smooth(range(t, 2.6, 3.8))), pitch: 0.15 * (1 - smooth(range(t, 3, 3.8))), rot: rotorSpin(T, { t0: 0 }), t: T });
-    drawHexapod({ pose: restPose(), feet: restFeet(), scanner: 1 - smooth(range(t, 2.8, 3.8)) }); downwash([REST.x, 0, REST.z], T, smooth(range(t, 3.0, 3.8)) * 0.7); updateCity(T, { marks: (i) => (i === 0 ? 1 - smooth(range(t, 0.4, 1.4)) : 1 - smooth(range(t, 0.1, 0.8))), markH: 30, markS: 1.2, fogNear: FOG.near, fogFar: FOG.far });
-    ui(T, { word: '重新结合', sub: 'RENDEZVOUS · DRONE RETURN' }); selRing(HUD, T, 1 - smooth(range(t, 0, 0.45))); // 接 s17 的选中圈和标注，开头淡出（原来切点处突然消失）
+    drawDrone({ pos: vl(from, HOVER, dk), scale: droneScale(c.h), heading: lerp(hd0, Math.PI + 2 * Math.PI * Math.round((hd0 - Math.PI) / (2 * Math.PI)), smooth(range(t, 2.6, 3.8))), pitch: 0.15 * (1 - smooth(range(t, 3, 3.8))), rot: rotorSpin(T, { t0: 0 }), t: T });
+    drawHexapod({ pose: restPose(), feet: restFeet(), scanner: 1 - smooth(range(t, 2.8, 3.8)) }); downwash([REST.x, 0, REST.z], T, smooth(range(t, 3.0, 3.8)) * 0.7); updateCity(T, { marks: (i) => (i === 0 ? 1 - smooth(range(t, 0.4, 1.4)) : 1 - smooth(range(t, 0.1, 0.8))), markH: 30, markS: markSize(c.h), fogNear: FOG.near, fogFar: FOG.far });
+    ui(T, { word: '重新结合', sub: 'RENDEZVOUS · DRONE RETURN' }); selRing(HUD, T, 1 - smooth(range(3 + t, 2.75, 3.15))); // 选中圈与标注在第二段跳降时淡出（与 s17 同一时间轴）
   } },
   s19: { update(t) { // 无人机落到六足机器人上方，锁扣扣合，收腿
     const T = T0.s19 + t; setLook('table'); setCam(CAM19.p, CAM19.look, CAM19.f); setShadow([REST.x, 0, REST.z], 6); fog(20, 160); TILT.on = false;
@@ -347,7 +362,7 @@ const SH = {
     ui(T, { word: '协同救援', sub: 'HELI · 3 RESCUERS BOARDING' });
   } },
   s22: { update(t) { // 空中擦肩：跟拍直升机飞向灾区，完成任务的结合体迎面飞过、返回基站（交汇处放慢）
-    const T = T0.s22 + t; const tau = t, tc = 2.3; // 匀速擦肩（去掉慢动作）
+    const T = T0.s22 + t; const tau = SLOW22(t), tc = SLOW22(2.3); // 交汇前后放慢（最慢 38% 速度）：用户要求保留慢镜头
     const Hp = [560 - 16 * tau, 90, 30]; setLook('table'); setCam(add(Hp, [24, 6, 10]), add(Hp, [-40, -10, -3]), 36); setShadow([250, 0, 0], 600); fog(300, 2400); TILT.r = 0.55; TILT.k = 0.5;
     updateCity(T, { fogNear: 300, fogFar: 2400 }); HELI.get().update({ pos: Hp, heading: -Math.PI / 2, pitch: 0.12, rotor: tau * 30, speed: 1, search: true });
     const xc = 560 - 16 * tc; combined([xc + 12 * (tau - tc), 93, 35], Math.PI / 2, 0.18, 0, rotorSpin(tau + 100, { t0: 0 }), tau);
@@ -392,7 +407,7 @@ const SH = {
     POST.gl = false; POST.vignette = 0.12; titleCard(HUD, t);
   } },
   s29: { transIn: { type: 'tiles', dur: 1.2 }, prepare: loadCredits, update(t, { POST }) { credits(t, POST); } },
-  s30: { transIn: { type: 'dissolve', dur: 1.0 }, update(t, { POST }) { cover(t, POST, true); } },
+  s30: { transIn: { type: 'dissolve', dur: 1.4 }, update(t, { POST }) { cover(t, POST, true); } }, // 片尾最后一组载荷悬停着直接溶解进封面
 };
 // —— 地图视图：正上方俯视，h 高度 ——
 function mapView(T, h, x, z) { setLook('table'); TILT.on = false; setCamYPR([x, h, z], 0, -Math.PI / 2, 0, GOD.fov); setShadow([x, 0, z], Math.min(900, h * 1.6)); fog(Math.max(400, h * 1.5), Math.max(2600, h * 6)); }
@@ -469,11 +484,23 @@ function godRise(t) { const u = clamp(t / 6); const h = lerpLog(S15.p[1], GOD.po
   return { p: [G[0] + Math.sin(yaw) * off, h, G[2] + Math.cos(yaw) * off], yaw, pitch, fov: lerp(S15.fov, GOD.fov, smooth(range(t, 0, 4))) }; }
 const CAM19 = { p: [3.35, 1.1, 3.35], look: [REST.x, 0.65, REST.z], f: 38 };
 const C19 = (() => { const d = [CAM19.look[0] - CAM19.p[0], CAM19.look[1] - CAM19.p[1], CAM19.look[2] - CAM19.p[2]]; const r = Math.hypot(...d); return { r, yaw: Math.atan2(-d[0], -d[2]), phi: Math.asin(-d[1] / r) }; })();
-function gtaCam(t) { let h = 120; h = lerpLog(h, 48, smoother(range(t, 0.2, 0.9))); h = lerpLog(h, 6.7, smoother(range(t, 1.2, 2.3)));
-  const gk = smoother(range(t, 0.05, 0.6)); const tk = smoother(range(t, 2.1, 3.5)); const tgt = vl([lerp(REST.x, REST.x, gk), 0, lerp(REST.z, REST.z, gk)], CAM19.look, tk);
-  const r = lerpLog(h, C19.r, tk), th = lerp(0, C19.yaw, smooth(tk)), phi = lerp(Math.PI / 2, C19.phi, tk); const p = [tgt[0] + r * Math.sin(th) * Math.cos(phi), tgt[1] + r * Math.sin(phi), tgt[2] + r * Math.cos(th) * Math.cos(phi)];
-  return { p, yaw: th, pitch: -phi, fov: lerp(GOD.fov, CAM19.f, tk), h }; }
-
+// —— GTA5 式下降（s17 推进大屏铺满之后 → s18）：τ 为 s17 开始后的秒数 ——
+// 铺满时画面就是 505 米高的上帝视角（与大屏画面逐像素一致）；先停一拍、平移到六足机器人正上方并选中，再分三段“跳降”（每段急降后稍停），最后一段从俯视转成 s19 的近景机位
+const DIVE = [[2.05, 2.5, 150], [2.75, 3.2, 45], [3.45, 3.95, 12]], DIVE_TILT = [4.2, 5.6]; // [开始, 结束, 落到的高度]
+function diveCam(tau) {
+  let h = GOD.pos[1]; for (const [a, b, h1] of DIVE) h = lerpLog(h, h1, smoother(range(tau, a, b)));
+  h *= Math.exp(-0.05 * Math.max(0, tau - 1.6)); // 停顿时保持缓慢推进
+  const pk = smooth(range(tau, 1.62, 2.2)), px = lerp(GOD.pos[0], REST.x, pk), pz = lerp(GOD.pos[2], REST.z, pk);
+  const tk = smoother(range(tau, DIVE_TILT[0], DIVE_TILT[1])); const tgt = vl([px, 0, pz], CAM19.look, tk);
+  const r = lerpLog(h, C19.r, tk), th = lerp(0, C19.yaw, smooth(tk)), phi = lerp(Math.PI / 2, C19.phi, tk);
+  const p = [tgt[0] + r * Math.sin(th) * Math.cos(phi), tgt[1] + r * Math.sin(phi), tgt[2] + r * Math.cos(th) * Math.cos(phi)];
+  return { p, yaw: th, pitch: -phi, fov: lerp(GOD.fov, CAM19.f, tk), h, tau, px, pz };
+}
+const markSize = (h) => clamp(h * 3.2 / GOD.pos[1], 0.3, 3.2), droneScale = (h) => 1 + 5 * smooth(clamp((h - 40) / (GOD.pos[1] - 40)));
+function diveLook(c) { const hc = Math.max(c.p[1], 1); setLook('table'); TILT.r = 0.42; TILT.k = 0.4 * smooth(range(c.tau, 2.05, 3.0)); setCamYPR(c.p, c.yaw, c.pitch, 0, c.fov); fogFor(hc); setShadow([c.px, 0, c.pz], clamp(hc * 1.4, 8, 700)); }
+function diveFrame(T, tau) { const c = diveCam(tau); diveLook(c); // s17 后半段：设备与红点；选中圈在第二段跳降时淡出
+  drawHexapod({ pose: restPose(), feet: restFeet(), scanner: 1 }); const dp = DEVICES.drone; drawDrone({ pos: [dp[0], dp[1] + 0.3 * Math.sin(T * 1.3), dp[2]], heading: 2.12, rot: rotorSpin(T, { t0: 0 }), t: T, scale: droneScale(c.h) });
+  updateCity(T, { marks: () => 1, markH: 30, markS: markSize(c.h), fogNear: FOG.near, fogFar: FOG.far }); selRing(HUD, T, 1 - smooth(range(tau, 2.75, 3.15))); return c; }
 // —— 片名（绿底） ——
 function titleCard(h, t) {
   h.save(); h.fillStyle = GREEN; h.fillRect(0, 0, W, H); const a1 = smooth((t - 0.4) / 0.9), a2 = smooth((t - 1.7) / 0.9);
@@ -484,35 +511,40 @@ function titleCard(h, t) {
 }
 // —— 片尾：左侧滚动名单，右侧棚拍演示通用接口（不同轴数无人机两两对接不同载荷） ——
 const PAIRS = [[6, 'hex'], [4, 'track'], [8, 'usv'], [6, 'rov'], [4, 'hex'], [8, 'track']];
+const CLIP_FLOOR = [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.002)], NO_CLIP = [];
 const PNAME = { 4: '四轴无人机', 6: '六轴无人机', 8: '八轴无人机' }, QNAME = { hex: '六足机器人', track: '履带机器人', rov: '潜水机器人', usv: '无人船' };
 function credits(t, POST) {
-  const T = T0.s29 + t; const tt = Math.max(0, t - 1.2); const n = Math.min(PAIRS.length - 1, Math.floor(tt / 4)); const u = tt - n * 4; const [arms, kind] = PAIRS[n];
+  // 每组 4 秒：载荷从转台下方升起 → 无人机从画面上方降下对接、锁定 → 一起离台悬停 → 加速升空飞出画面（退场）；最后一组不退场，悬停着直接溶解到封面
+  const T = T0.s29 + t; const tt = Math.max(0, t - 1.2); const n = Math.min(PAIRS.length - 1, Math.floor(tt / 4)); const u = tt - n * 4; const [arms, kind] = PAIRS[n]; const last = n === PAIRS.length - 1;
   setLook('studio'); const a = 0.9 + T * 0.12; setCam([5.8 * Math.sin(a), 2.0, 5.8 * Math.cos(a)], [0, 0.95, 0], 34); cam.setViewOffset(W, H, -470, -10, W, H); CS.size = 5; CS.center = [0, 0]; fog(30, 80);
-  const vis = smooth(range(u, 0, 0.6)) * (1 - smooth(range(u, 3.35, 3.95))); const yaw = 0.3 + T * 0.35; const lift = smooth(range(u, 2.05, 3.0)) * 0.5; const desc = smoother(range(u, 0.55, 1.8)); const lock = smooth(range(u, 1.8, 2.0));
-  if (vis > 0.01) { let plate;
-    if (kind === 'hex') { const pose = { x: 0, y: lift + HEX.standH, z: 0, heading: yaw }; const hp = drawHexapod({ pose, feet: standFeet(pose).map((q) => [q[0], lift, q[2]]) }); plate = hp.world([0, HEX.topY, 0]); }
-    else plate = PAYLOADS[kind].get().update([0, lift, 0], yaw, T);
-    const P = [plate[0], plate[1] + 0.185 + (1 - desc) * 1.25, plate[2]]; drawDrone({ pos: P, heading: yaw, rot: rotorSpin(T, { t0: 0 }), t: T, arms, gear: 1 - smooth(range(u, 0.6, 1.3)), latch: 1 - lock, ring: 1.2 + 2.5 * lock });
+  renderer.clippingPlanes = CLIP_FLOOR; // 转台以下的部分不画：载荷像从升降台里升上来
+  const yaw = 0.3 + T * 0.35; const rise = -0.62 * (1 - easeOut(range(u, 0, 0.8))); const desc = smoother(range(u, 0.25, 1.8)); const lock = smooth(range(u, 1.8, 2.0));
+  const lift = smooth(range(u, 2.05, 2.9)) * 0.5 + (last ? 0.035 * Math.sin((u - 2.9) * 1.7) * smooth(range(u, 2.9, 3.6)) : 0); const out = last ? 0 : easeIn(range(u, 3.0, 3.9));
+  if (u < 3.95 || last) { let plate; const y0 = rise + lift + out * 4.6;
+    if (kind === 'hex') { const pose = { x: 0, y: y0 + HEX.standH, z: 0, heading: yaw }; const hp = drawHexapod({ pose, feet: standFeet(pose).map((q) => [q[0], y0, q[2]]) }); plate = hp.world([0, HEX.topY, 0]); }
+    else plate = PAYLOADS[kind].get().update([0, y0, 0], yaw, T);
+    const P = [plate[0], plate[1] + 0.185 + (1 - desc) * 2.6, plate[2]]; drawDrone({ pos: P, heading: yaw, rot: rotorSpin(T, { t0: 0 }), t: T, arms, gear: 1 - smooth(range(u, 0.6, 1.3)), latch: 1 - lock, ring: 1.2 + 2.5 * lock });
     if (desc < 1) fxLine([[P[0], P[1] - 0.2, P[2]], plate], COL.orange, 0.8 * smooth(range(u, 0.7, 1.0)), [0.04, 0.04]);
     const fl = Math.exp(-(((u - 1.9) / 0.1) ** 2)); if (fl > 0.02) fxRing(plate, 0.2 + (u - 1.8) * 2.2, COL.orange, fl, 0.03); }
+  { const q = range(u, 0, 0.8); if (q > 0 && q < 1) fxRing([0, 0.012, 0], 0.35 + 0.95 * q, COL.orange, 0.75 * (1 - q), 0.025); } // 升起时转台上的光圈
+  if (!last) { const q = range(u, 3.0, 3.75); if (q > 0 && q < 1) fxRing([0, 0.012, 0], 0.3 + 1.7 * q, '#9b958b', 0.55 * (1 - q), 0.025); } // 升空时的下洗气流圈
   for (const r of [0.9, 1.4]) fxLine(circlePts([0, 0.005, 0], r, 96), '#9b958b', 0.45);
   POST.vignette = 0.08;
-  const h = HUD; h.save(); const pin = smooth(range(t, 0.6, 1.5));
+  const h = HUD; h.save(); const pin = smooth(range(t, 0.6, 1.5)); const cout = smooth(range(t, 24.6, 25.6)), cx = -780 * easeIn(range(t, 24.6, 25.5)); // 片尾：名单卡片向左滑出，右侧标题淡出，只留最后一组悬停在台上
   // 左侧名单卡片
-  const X = 120, Y = 150, Wd = 640, Hd = 780; h.globalAlpha = pin; h.shadowColor = 'rgba(60,45,30,0.08)'; h.shadowBlur = 20; h.fillStyle = 'rgba(251,250,247,0.95)'; h.beginPath(); h.roundRect(X, Y, Wd, Hd, 10); h.fill(); h.shadowColor = 'transparent'; h.strokeStyle = 'rgba(29,30,33,0.1)'; h.stroke();
+  const X = 120 + cx, Y = 150, Wd = 640, Hd = 780; h.globalAlpha = pin * (1 - cout); h.shadowColor = 'rgba(60,45,30,0.08)'; h.shadowBlur = 20; h.fillStyle = 'rgba(251,250,247,0.95)'; h.beginPath(); h.roundRect(X, Y, Wd, Hd, 10); h.fill(); h.shadowColor = 'transparent'; h.strokeStyle = 'rgba(29,30,33,0.1)'; h.stroke();
   h.fillStyle = COL.orange; h.fillRect(X, Y, 8, 90); h.textAlign = 'left'; h.font = `900 64px ${FONT}`; h.fillStyle = COL.ink; h.fillText('六合', X + 44, Y + 84); h.font = `500 24px ${FONT}`; h.fillStyle = COL.ink2; h.fillText('空地协同生命搜救系统', X + 190, Y + 80);
   h.font = `500 13px ${MONO}`; h.letterSpacing = '4px'; h.fillStyle = COL.ink2; h.fillText('CREDITS · 制作人员', X + 44, Y + 140); h.letterSpacing = '0px'; h.fillStyle = 'rgba(29,30,33,0.1)'; h.fillRect(X + 44, Y + 156, Wd - 88, 1);
   const top = Y + 190, bot = Y + Hd - 30; const lines = CREDITS ? CREDITS.lines : []; const lh = 70; const offEnd = (top + bot) / 2 - (lines.length * lh + 70); const off = lerp(bot + 10, offEnd, smooth(clamp((t - 2.3) / 19.5)) * 0.15 + clamp((t - 2.3) / 19.5) * 0.85);
   h.save(); h.beginPath(); h.rect(X, top - 30, Wd, bot - top + 30); h.clip();
-  lines.forEach(([role, name], i) => { const y = off + i * lh; if (y < top - 40 || y > bot + 40) return; const fe = clamp((y - top + 20) / 60) * clamp((bot - y) / 60); h.globalAlpha = pin * fe; h.font = `400 26px ${FONT}`; h.fillStyle = COL.ink2; h.textAlign = 'left'; h.fillText(role, X + 60, y); h.font = `700 32px ${FONT}`; h.fillStyle = COL.ink; h.textAlign = 'right'; h.fillText(name, X + Wd - 60, y); });
-  const yc = off + lines.length * lh + 70; const fe = clamp((yc - top) / 60) * clamp((bot - yc) / 60); if (CREDITS && CREDITS.closing) { h.globalAlpha = pin * fe; h.font = `700 32px ${FONT}`; h.fillStyle = COL.orange; h.textAlign = 'center'; h.fillText(CREDITS.closing, X + Wd / 2, yc); }
+  lines.forEach(([role, name], i) => { const y = off + i * lh; if (y < top - 40 || y > bot + 40) return; const fe = clamp((y - top + 20) / 60) * clamp((bot - y) / 60); h.globalAlpha = pin * (1 - cout) * fe; h.font = `400 26px ${FONT}`; h.fillStyle = COL.ink2; h.textAlign = 'left'; h.fillText(role, X + 60, y); h.font = `700 32px ${FONT}`; h.fillStyle = COL.ink; h.textAlign = 'right'; h.fillText(name, X + Wd - 60, y); });
+  const yc = off + lines.length * lh + 70; const fe = clamp((yc - top) / 60) * clamp((bot - yc) / 60); if (CREDITS && CREDITS.closing) { h.globalAlpha = pin * (1 - cout) * fe; h.font = `700 32px ${FONT}`; h.fillStyle = COL.orange; h.textAlign = 'center'; h.fillText(CREDITS.closing, X + Wd / 2, yc); }
   h.restore();
   // 右侧标题与当前组合
-  h.globalAlpha = pin; h.textAlign = 'left'; h.font = `500 13px ${MONO}`; h.letterSpacing = '4px'; h.fillStyle = COL.ink2; h.fillText('UNIVERSAL DOCK · 通用对接接口', 1040, 190); h.letterSpacing = '0px'; h.font = `900 44px ${FONT}`; h.fillStyle = COL.ink; h.fillText('一套接口，多种载荷', 1040, 246);
-  const la = smooth(range(u, 0.4, 0.9)) * (1 - smooth(range(u, 3.4, 3.9))) * pin; h.globalAlpha = la; h.font = `700 34px ${FONT}`; h.fillStyle = COL.ink; h.textAlign = 'center'; h.fillText(`${PNAME[arms]}  ×  ${QNAME[kind]}`, 1440, 920);
+  h.globalAlpha = pin * (1 - cout); h.textAlign = 'left'; h.font = `500 13px ${MONO}`; h.letterSpacing = '4px'; h.fillStyle = COL.ink2; h.fillText('UNIVERSAL DOCK · 通用对接接口', 1040, 190); h.letterSpacing = '0px'; h.font = `900 44px ${FONT}`; h.fillStyle = COL.ink; h.fillText('一套接口，多种载荷', 1040, 246);
+  const la = smooth(range(u, 0.4, 0.9)) * (last ? 1 - cout : 1 - smooth(range(u, 2.9, 3.4))) * pin; h.globalAlpha = la; h.font = `700 34px ${FONT}`; h.fillStyle = COL.ink; h.textAlign = 'center'; h.fillText(`${PNAME[arms]}  ×  ${QNAME[kind]}`, 1440, 920);
   h.globalAlpha = la * lock; h.font = `500 22px ${FONT}`; h.fillStyle = GREEN; h.fillText('● 接口锁定', 1440, 960);
   h.restore();
-  const outF = smooth(range(t, 24.8, 26)); if (outF > 0) { h.save(); h.globalAlpha = outF; h.fillStyle = '#f2efea'; h.fillRect(0, 0, W, H); h.restore(); }
 }
 // —— 封面：六足机器人立在棚拍台上，无人机悬停其上方以对接光束相连；左侧片名、口号，右侧设备标注 ——
 function cover(t, POST, film) {
@@ -535,5 +567,5 @@ function cover(t, POST, film) {
   if (film) { const f = smooth(range(t, 5.0, 6.0)); if (f > 0) { HUD.save(); HUD.globalAlpha = f; HUD.fillStyle = '#000'; HUD.fillRect(0, 0, W, H); HUD.restore(); } }
 }
 
-export const SHOTS = [...DURS.map(([id, dur]) => ({ id, dur, ...SH[id], update: ((u) => (t, ctx) => { HUD = ctx.hud; setXray(0, 0, 1, 0); u(t, ctx); })(SH[id].update) })),
-  { id: 'cover', dur: 1, extra: true, update(t, ctx) { HUD = ctx.hud; setXray(0, 0, 1, 0); cover(3, ctx.POST, false); } }];
+export const SHOTS = [...DURS.map(([id, dur]) => ({ id, dur, ...SH[id], update: ((u) => (t, ctx) => { HUD = ctx.hud; setXray(0, 0, 1, 0); renderer.clippingPlanes = NO_CLIP; u(t, ctx); })(SH[id].update) })),
+  { id: 'cover', dur: 1, extra: true, update(t, ctx) { HUD = ctx.hud; setXray(0, 0, 1, 0); renderer.clippingPlanes = NO_CLIP; cover(3, ctx.POST, false); } }];

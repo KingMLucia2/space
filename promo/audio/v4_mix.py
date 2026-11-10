@@ -1,12 +1,13 @@
-# 第四版混音（同第三版，时长 152.4 秒，末尾是封面镜头）：旁白（居中）、对讲机（带通滤波）、音效、配乐（旁白时自动压低），软限幅后输出 build/v3_mix.wav；另出 SRT 字幕文件备用（不烧进画面）
+# 第四版混音（第三版旁白与对讲机，第四轮拆解镜头加长后全片 157.2 秒，末尾是封面镜头）：旁白（居中）、对讲机（带通滤波）、音效、配乐（旁白时自动压低），软限幅后输出 build/v4_mix.wav；另出 SRT 字幕文件备用（不烧进画面）
 import json, numpy as np, soundfile as sf
 from dsp import SR, lp, radio, stereo
 
-DUR = 152.4; N = int(DUR * SR)
+DUR = 157.2; N = int(DUR * SR)
 SHIFT_AT, EXT = 89.3, 2.4  # 绞车救援镜头加长后，之后的旁白整体顺延
 meta = json.load(open('build/v3_narration.json'))
 for it in meta['narration'] + meta['radio']:
     if it['start'] >= SHIFT_AT: it['start'] = round(it['start'] + EXT, 2)
+    if it['start'] >= 17.9: it['start'] = round(it['start'] + 4.8, 2)  # 第四轮：拆解镜头加长 4.8 秒，“六足机器人与六轴无人机合为一体……”这句起整体顺延，“合为一体”仍落在部件合拢的那一下
 music, _ = sf.read('build/v4_music.wav'); sfx, _ = sf.read('build/v4_sfx.wav')
 voice = np.zeros(N); duck = np.zeros(N)
 for it in meta['narration']:

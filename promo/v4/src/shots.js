@@ -407,7 +407,7 @@ const SH = {
     POST.gl = false; POST.vignette = 0.12; titleCard(HUD, t);
   } },
   s29: { transIn: { type: 'tiles', dur: 1.2 }, prepare: loadCredits, update(t, { POST }) { credits(t, POST); } },
-  s30: { transIn: { type: 'dissolve', dur: 1.4 }, update(t, { POST }) { cover(t, POST, true); } }, // 片尾最后一组载荷悬停着直接溶解进封面
+  s30: { transIn: { type: 'dissolve', dur: 1.4 }, update(t, { POST }) { cover(t, POST, true); } }, // 片尾名单与最后一组载荷退场后溶解进封面
 };
 // —— 地图视图：正上方俯视，h 高度 ——
 function mapView(T, h, x, z) { setLook('table'); TILT.on = false; setCamYPR([x, h, z], 0, -Math.PI / 2, 0, GOD.fov); setShadow([x, 0, z], Math.min(900, h * 1.6)); fog(Math.max(400, h * 1.5), Math.max(2600, h * 6)); }
@@ -514,23 +514,23 @@ const PAIRS = [[6, 'hex'], [4, 'track'], [8, 'usv'], [6, 'rov'], [4, 'hex'], [8,
 const CLIP_FLOOR = [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.002)], NO_CLIP = [];
 const PNAME = { 4: '四轴无人机', 6: '六轴无人机', 8: '八轴无人机' }, QNAME = { hex: '六足机器人', track: '履带机器人', rov: '潜水机器人', usv: '无人船' };
 function credits(t, POST) {
-  // 每组 4 秒：载荷从转台下方升起 → 无人机从画面上方降下对接、锁定 → 一起离台悬停 → 加速升空飞出画面（退场）；最后一组不退场，悬停着直接溶解到封面
+  // 每组 4 秒：载荷从转台下方升起 → 无人机从画面上方降下对接、锁定 → 一起离台悬停 → 加速升空飞出画面（退场）；最后一组在名单卡片滑出时一起升空退场，随后接封面
   const T = T0.s29 + t; const tt = Math.max(0, t - 1.2); const n = Math.min(PAIRS.length - 1, Math.floor(tt / 4)); const u = tt - n * 4; const [arms, kind] = PAIRS[n]; const last = n === PAIRS.length - 1;
   setLook('studio'); const a = 0.9 + T * 0.12; setCam([5.8 * Math.sin(a), 2.0, 5.8 * Math.cos(a)], [0, 0.95, 0], 34); cam.setViewOffset(W, H, -470, -10, W, H); CS.size = 5; CS.center = [0, 0]; fog(30, 80);
   renderer.clippingPlanes = CLIP_FLOOR; // 转台以下的部分不画：载荷像从升降台里升上来
   const yaw = 0.3 + T * 0.35; const rise = -0.62 * (1 - easeOut(range(u, 0, 0.8))); const desc = smoother(range(u, 0.25, 1.8)); const lock = smooth(range(u, 1.8, 2.0));
-  const lift = smooth(range(u, 2.05, 2.9)) * 0.5 + (last ? 0.035 * Math.sin((u - 2.9) * 1.7) * smooth(range(u, 2.9, 3.6)) : 0); const out = last ? 0 : easeIn(range(u, 3.0, 3.9));
-  if (u < 3.95 || last) { let plate; const y0 = rise + lift + out * 4.6;
+  const lift = smooth(range(u, 2.05, 2.9)) * 0.5 + (last ? 0.035 * Math.sin((u - 2.9) * 1.7) * smooth(range(u, 2.9, 3.6)) : 0); const out = last ? easeIn(range(t, 24.6, 25.5)) : easeIn(range(u, 3.0, 3.9)); // 最后一组与片尾名单同时退场
+  if (u < 3.95 || (last && t < 25.6)) { let plate; const y0 = rise + lift + out * 4.6;
     if (kind === 'hex') { const pose = { x: 0, y: y0 + HEX.standH, z: 0, heading: yaw }; const hp = drawHexapod({ pose, feet: standFeet(pose).map((q) => [q[0], y0, q[2]]) }); plate = hp.world([0, HEX.topY, 0]); }
     else plate = PAYLOADS[kind].get().update([0, y0, 0], yaw, T);
     const P = [plate[0], plate[1] + 0.185 + (1 - desc) * 2.6, plate[2]]; drawDrone({ pos: P, heading: yaw, rot: rotorSpin(T, { t0: 0 }), t: T, arms, gear: 1 - smooth(range(u, 0.6, 1.3)), latch: 1 - lock, ring: 1.2 + 2.5 * lock });
     if (desc < 1) fxLine([[P[0], P[1] - 0.2, P[2]], plate], COL.orange, 0.8 * smooth(range(u, 0.7, 1.0)), [0.04, 0.04]);
     const fl = Math.exp(-(((u - 1.9) / 0.1) ** 2)); if (fl > 0.02) fxRing(plate, 0.2 + (u - 1.8) * 2.2, COL.orange, fl, 0.03); }
   { const q = range(u, 0, 0.8); if (q > 0 && q < 1) fxRing([0, 0.012, 0], 0.35 + 0.95 * q, COL.orange, 0.75 * (1 - q), 0.025); } // 升起时转台上的光圈
-  if (!last) { const q = range(u, 3.0, 3.75); if (q > 0 && q < 1) fxRing([0, 0.012, 0], 0.3 + 1.7 * q, '#9b958b', 0.55 * (1 - q), 0.025); } // 升空时的下洗气流圈
+  { const q = last ? range(t, 24.6, 25.35) : range(u, 3.0, 3.75); if (q > 0 && q < 1) fxRing([0, 0.012, 0], 0.3 + 1.7 * q, '#9b958b', 0.55 * (1 - q), 0.025); } // 升空时的下洗气流圈
   for (const r of [0.9, 1.4]) fxLine(circlePts([0, 0.005, 0], r, 96), '#9b958b', 0.45);
   POST.vignette = 0.08;
-  const h = HUD; h.save(); const pin = smooth(range(t, 0.6, 1.5)); const cout = smooth(range(t, 24.6, 25.6)), cx = -780 * easeIn(range(t, 24.6, 25.5)); // 片尾：名单卡片向左滑出，右侧标题淡出，只留最后一组悬停在台上
+  const h = HUD; h.save(); const pin = smooth(range(t, 0.6, 1.5)); const cout = smooth(range(t, 24.6, 25.6)), cx = -780 * easeIn(range(t, 24.6, 25.5)); // 片尾：名单卡片向左滑出、右侧标题淡出，最后一组同时升空退场
   // 左侧名单卡片
   const X = 120 + cx, Y = 150, Wd = 640, Hd = 780; h.globalAlpha = pin * (1 - cout); h.shadowColor = 'rgba(60,45,30,0.08)'; h.shadowBlur = 20; h.fillStyle = 'rgba(251,250,247,0.95)'; h.beginPath(); h.roundRect(X, Y, Wd, Hd, 10); h.fill(); h.shadowColor = 'transparent'; h.strokeStyle = 'rgba(29,30,33,0.1)'; h.stroke();
   h.fillStyle = COL.orange; h.fillRect(X, Y, 8, 90); h.textAlign = 'left'; h.font = `900 64px ${FONT}`; h.fillStyle = COL.ink; h.fillText('六合', X + 44, Y + 84); h.font = `500 24px ${FONT}`; h.fillStyle = COL.ink2; h.fillText('空地协同生命搜救系统', X + 190, Y + 80);

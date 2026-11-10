@@ -255,7 +255,7 @@ add(sfx, lp(noise(11.0), 180) * 0.12, 97.0, 0.6); add(sfx, whoosh(0.6, vel=0.8),
 # s29 片尾：绿色碎成粒子、面板出现、六次对接
 add(sfx, shimmer(2.0, 90, 1.4) + sweep(2.0, 0.6), 118.1, 0.9); add(sfx, whoosh(1.6, vel=0.6), 118.3, 0.5)
 for k in range(3): add(sfx, blip(1700 + 300 * k, 0.05, 0.7), 119.4 + k * 0.12, 0.5, pan=-0.4 + 0.4 * k)
-# 六组载荷（final 时间，每组 4 秒，与 shots.js 的 credits() 一致）：载荷从转台升起 → 无人机降下 → 锁定 → 离台 → 升空退场；最后一组不退场，名单卡片滑出后溶解进封面
+# 六组载荷（final 时间，每组 4 秒，与 shots.js 的 credits() 一致）：载荷从转台升起 → 无人机降下 → 锁定 → 离台 → 升空退场；最后一组在名单卡片滑出时一起升空退场，随后接封面
 S29 = 120.4 + EXT5
 for k in range(6):
     c0 = S29 + 1.2 + 4 * k; last = k == 5
@@ -265,6 +265,7 @@ for k in range(6):
     add(sfx, servo(0.6, 300, 380) * 0.4, c0 + 2.05, 0.35, pan=0.5, final=True)
     if not last: add(sfx, whoosh(1.15, vel=0.9), c0 + 2.95, 0.6, pan=0.5, final=True); add(sfx, rotor(1.2, 118) * np.linspace(1, 0, int(1.2 * SR)), c0 + 2.9, 0.35, pan=0.5, final=True)
 add(sfx, whoosh(1.0, vel=0.4), S29 + 24.6, 0.4, final=True)
+add(sfx, whoosh(1.15, vel=0.9), S29 + 24.55, 0.6, pan=0.5, final=True); add(sfx, rotor(1.2, 118) * np.linspace(1, 0, int(1.2 * SR)), S29 + 24.5, 0.35, pan=0.5, final=True)  # 最后一组与名单一起升空退场
 
 
 # s30 封面（146.4–152.4）：转场呼啸与闪烁，片名出现时钟声与低音，标注提示音，D 大调长和弦收束（画面 151.4 起淡黑）
